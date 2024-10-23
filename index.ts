@@ -4,12 +4,12 @@ type ResultType = 'Ok' | 'Nil' | 'Err'
 
 type Nil = {
     readonly [Symbol.toStringTag]: 'Nil'
-    map: () => Nil
-    flatMap: () => Nil
-    filter: () => Nil
-    guard: () => Nil
+    map: (_: (_: undefined) => unknown) => Nil
+    flatMap: (_: (_: undefined) => Result<unknown, Error>) => Nil
+    filter: (_: (_: undefined) => false) => Nil
+    guard: (_: (_: undefined) => false) => Nil
     or: <T>(value: T) => Option<T>
-	catch: () => Nil
+	catch: (_: (_: Error) => Result<unknown, Error>) => Nil
 	match: <T, E extends Error>(cases: Cases<T, E>) => Result<T, E>
     get: () => void
 }
@@ -21,8 +21,8 @@ type Ok<T> = {
     flatMap: <U, E extends Error>(fn: (value: T) => Result<U, E>) => Result<U, E>
     filter: (fn: (value: T) => boolean) => Option<T>
     guard: <U extends T>(fn: (value: T) => value is U) => Option<U>
-    or: () => Ok<T>
-	catch: () => Ok<T>
+    or: (_: unknown) => Ok<T>
+	catch: (_: (_: Error) => Result<unknown, Error>) => Ok<T>
 	match: <T, E extends Error>(cases: Cases<T, E>) => Result<T, E>
     get: () => T
 }
@@ -30,10 +30,10 @@ type Ok<T> = {
 type Err<E extends Error> = {
     readonly [Symbol.toStringTag]: 'Err'
     error: E
-    map: () => Err<E>
-    flatMap: () => Err<E>
-    filter: () => Err<E>
-    guard: () => Err<E>
+    map: (_: (_: undefined) => unknown) => Err<E>
+    flatMap: (_: (_: undefined) => Result<unknown, Error>) => Err<E>
+    filter: (_: (_: undefined) => false) => Err<E>
+    guard: (_: (_: undefined) => false) => Err<E>
     or: <T>(value: T) => Option<T>
 	catch: <T, F extends Error>(fn: (error: E) => Result<T, F>) => Result<T, F>
 	match: <T, E extends Error>(cases: Cases<T, E>) => Result<T, E>
@@ -47,7 +47,7 @@ type Result<T, E extends Error> = Ok<T> | Nil | Err<E>
 type Cases<T, E extends Error> = {
     [TYPE_OK]?: (value: unknown) => Result<T, E>
     [TYPE_NIL]?: () => Result<T, E>
-    [TYPE_ERR]?: (error: unknown) => Result<T, E>
+    [TYPE_ERR]?: (error: Error) => Result<T, E>
     else?: (value: unknown) => Result<T, E>
 };
 
@@ -81,10 +81,10 @@ const isFunction: (value: unknown) => value is Function = (value: unknown) =>
 const callFunction = (fn: unknown, ...args: unknown[]): unknown =>
     isFunction(fn) ? fn(...args) : undefined
 
-const matchCase = (type: ResultType, value: unknown, id: unknown) =>
+const matchCase = <U>(type: ResultType, value: U, id: () => Result<U, Error>) =>
 	<T, E extends Error>(cases: Cases<T, E>): Result<T, E> => {
 		const fn = cases[type] ?? cases.else
-		return isFunction(fn) ? fn(value) : id as Result<T, E>
+		return isFunction(fn) ? fn(value as U & Error) : id() as Result<T, E>
 	}
 
 /* === Exported Functions === */
@@ -105,7 +105,7 @@ const Ok = <T>(value: T): Ok<T> => ({
 	guard: <U extends T>(fn: (value: T) => value is U) => fn(value) ? Ok(value) : Nil(),
 	or: () => Ok(value),
 	catch: () => Ok(value),
-	match: matchCase(TYPE_OK, value, Ok(value)),
+	match: matchCase<T>(TYPE_OK, value, () => Ok(value)),
 	get: () => value,
 })
 
@@ -123,7 +123,7 @@ const Nil = (): Nil => ({
 	guard: Nil,
 	or: option,
 	catch: Nil,
-	match: matchCase(TYPE_NIL, undefined, Nil()),
+	match: matchCase(TYPE_NIL, undefined, Nil),
 	get: () => undefined,
 })
 
@@ -143,7 +143,7 @@ const Err = <E extends Error>(error: E): Err<E> => ({
 	guard: () => Err(error),
 	or: <T>(value: T): Option<T> => option(value),
 	catch: <T, F extends Error>(fn: (error: E) => Result<T, F>): Result<T, F> => fn(error),
-	match: matchCase(TYPE_ERR, error, Err(error)),
+	match: matchCase<E>(TYPE_ERR, error, () => Err(error)),
 	get: () => { throw error }, // re-throw error for the caller to handle
 })
 
