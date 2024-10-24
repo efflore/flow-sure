@@ -42,14 +42,14 @@ describe("Monad Laws for Ok", () => {
         const f = addOneOk;
         const result1 = Ok(x).flatMap(f);
         const result2 = f(x);
-        expect(result1.value).toBe(result2.value);
+        expect(result1.get()).toBe(result2.get());
     });
 
     test("Right Identity: Ok(x).flatMap(Ok) === Ok(x)", () => {
         const x = 5;
         const result1 = Ok(x).flatMap(Ok);
         const result2 = Ok(x);
-        expect(result1.value).toBe(result2.value);
+        expect(result1.get()).toBe(result2.get());
     });
 
     test("Associativity: (Ok(x).flatMap(f)).flatMap(g) === Ok(x).flatMap(x => f(x).flatMap(g))", () => {
@@ -58,7 +58,7 @@ describe("Monad Laws for Ok", () => {
         const g = doubleOk;
         const result1 = Ok(x).flatMap(f).flatMap(g);
         const result2 = Ok(x).flatMap(x => f(x).flatMap(g));
-        expect(result1.value).toBe(result2.value);
+        expect(result1.get()).toBe(result2.get());
     });
 });
 
@@ -117,14 +117,14 @@ describe("Functor Laws for Ok", () => {
         const x = 5;
         const result1 = Ok(x).map(identity);
         const result2 = Ok(x);
-        expect(result1.value).toBe(result2.value);
+        expect(result1.get()).toBe(result2.get());
     });
 
     test("Composition: Ok(x).map(x => f(g(x))) === Ok(x).map(g).map(f)", () => {
         const x = 5;
         const result1 = Ok(x).map(x => addOne(double(x))); // map with composition
         const result2 = Ok(x).map(double).map(addOne); // map separately
-        expect(result1.value).toBe(result2.value);
+        expect(result1.get()).toBe(result2.get());
     });
 });
 

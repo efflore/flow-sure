@@ -3,24 +3,24 @@
 type Ok<T> = {
     readonly [Symbol.toStringTag]: 'Ok'
     value: T
-    map: <U>(fn: (value: T) => U) => Result<U, Error>
-    flatMap: <U, F extends Error>(fn: (value: T) => Result<U, F>) => Result<U, F>
+    map: <U>(fn: (value: T) => U) => Ok<U>
+    flatMap: <U, E extends Error>(fn: (value: T) => Result<U, E>) => Result<U, E>
     filter: (fn: (value: T) => boolean) => Option<T>
     guard: <U extends T>(fn: (value: T) => value is U) => Option<U>
-    or: <U>(_: U) => Ok<U>
-	catch: <U, F extends Error>(_: (error: undefined) => Result<U, F>) => Ok<T>
+    or: (_: any) => Ok<T>
+	catch: (_: any) => Ok<T>
 	match: <U, F extends Error>(cases: Cases<T, Error, U, F>) => Result<U, F>
     get: () => T
 }
 
 type Nil = {
     readonly [Symbol.toStringTag]: 'Nil'
-    map: <U>(_: (value: undefined) => U) => Nil
-    flatMap: <U, F extends Error>(_: (value: undefined) => Result<U, F>) => Nil
-    filter: (_: (value: undefined) => false) => Nil
-    guard: <U extends undefined>(_: (value: undefined) => value is U) => Nil
-    or: <U>(value: U) => Option<U>
-	catch: <U, F extends Error>(_: (error: undefined) => Result<U, F>) => Nil
+    map: (_: any) => Nil
+    flatMap: (_: any) => Nil
+    filter: (_: any) => Nil
+    guard: (_: any) => Nil
+    or: <T>(value: T) => Option<T>
+	catch: (_: any) => Nil
 	match: <U, F extends Error>(cases: Cases<undefined, Error, U, F>) => Result<U, F>
     get: () => undefined
 }
@@ -28,11 +28,11 @@ type Nil = {
 type Err<E extends Error> = {
     readonly [Symbol.toStringTag]: 'Err'
     error: E
-    map: <U, F extends Error>(_: (value: undefined) => U) => Err<F>
-	flatMap: <U, F extends Error>(_: (value: undefined) => Result<U, F>) => Err<F>
-    filter: (_: (value: undefined) => false) => Nil
-    guard: <U extends undefined>(_: (value: undefined) => value is U) => Nil
-    or: <U>(value: U) => Option<U>
+    map: (_: any) => Err<E>
+	flatMap: (_: any) => Err<E>
+    filter: (_: any) => Nil
+    guard: (_: any) => Nil
+    or: <T>(value: T) => Option<T>
 	catch: <U, F extends Error>(fn: (error: E) => Result<U, F>) => Result<U, F>
 	match: <U, F extends Error>(cases: Cases<undefined, E, U, F>) => Result<U, F>
     get: () => never
@@ -87,16 +87,16 @@ const callFunction = (fn: unknown, ...args: unknown[]): unknown =>
 const Ok = <T>(value: T): Ok<T> => ({
 	[Symbol.toStringTag]: TYPE_OK,
 	value,
-	map: <U>(fn: (value: T) => U) => result(() => fn(value)),
-	flatMap: <U, F extends Error>(fn: (value: T) => Result<U, F>) => fn(value),
+	map: <U>(fn: (value: T) => U) => Ok(fn(value)),
+	flatMap: <U, E extends Error>(fn: (value: T) => Result<U, E>) => fn(value),
 	filter: (fn: (value: T) => boolean) => fn(value) ? Ok<T>(value) : Nil(),
 	guard: <U extends T>(fn: (value: T) => value is U) => fn(value) ? Ok<U>(value) : Nil(),
-	or: <U>() => Ok(value as unknown as U),
-	catch: <U>() => Ok<U>(value as unknown as U),
+	or: () => Ok(value),
+	catch: () => Ok(value),
 	match: <U, F extends Error>(cases: Cases<T, Error, U, F>) =>
 		isFunction(cases[TYPE_OK])
 			? cases[TYPE_OK](value)
-			: Ok(value as unknown as U),
+			: Ok(value) as unknown as Result<U, F>,
 	get: () => value,
 })
 
@@ -112,7 +112,7 @@ const Nil = (): Nil => ({
 	flatMap: Nil,
 	filter: Nil,
 	guard: Nil,
-	or: <U>(value: U) => option<U>(value),
+	or: <T>(value: T) => option(value),
 	catch: Nil,
 	match: <U, F extends Error>(cases: Cases<undefined, Error, U, F>) =>
 		isFunction(cases[TYPE_NIL])
@@ -131,16 +131,16 @@ const Nil = (): Nil => ({
 const Err = <E extends Error>(error: E): Err<E> => ({
 	[Symbol.toStringTag]: TYPE_ERR,
 	error,
-	map: <F extends Error>() => Err<F>(error as unknown as F),
-	flatMap: <F extends Error>() => Err<F>(error as unknown as F),
+	map: () => Err<E>(error),
+	flatMap: () => Err<E>(error),
 	filter: Nil,
 	guard: Nil,
-	or: <U>(value: U) => option<U>(value),
+	or: <T>(value: T) => option(value),
 	catch: <U, F extends Error>(fn: (error: E) => Result<U, F>) => fn(error),
 	match: <U, F extends Error>(cases: Cases<undefined, E, U, F>) =>
 		isFunction(cases[TYPE_ERR])
 			? cases[TYPE_ERR](error)
-			: Err(error as unknown as F),
+			: Err(error) as unknown as Err<F>,
 	get: () => { throw error }, // re-throw error for the caller to handle
 })
 
