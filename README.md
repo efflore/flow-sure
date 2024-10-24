@@ -1,9 +1,9 @@
-# Result Monads
+# FlowSure
 
-Version 0.9.2
+Version 0.9.3
 
 A Result monad in TypeScript.
 
-Use `option()` to handle maybe nullish values, `result()` to handle possible errors, and `task()` for asynchronous tasks with retry.
+Use `ensure()` to handle maybe nullish values, `attempt()` to handle possible errors, and `obtain()` for asynchronous tasks with retry. Use `flow()` to compose nested functions sequentially.
 
-The data types Ok, Nil, and Err all implement methods like `map()`, `chain()`, `filter()`, `guard()`, `or()`, `catch()`, `match()`, and `get()`.
+The data types `Ok<T>`, `Nil`, and `Err<E extends Error>` all implement methods like `map()`, `chain()`, `filter()`, `guard()`, `or()`, `catch()`, `match()`, and `get()`.

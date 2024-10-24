@@ -82,17 +82,17 @@ declare const Err: <E extends Error>(error: E) => Err<E>;
  * @param {T | null | undefined} value - value to wrap in an array
  * @returns {Option<T>} - option of either Ok or Nil, depending on whether the input is nullish
  */
-declare const option: <T>(value: T | null | undefined) => Option<T>;
+declare const ensure: <T>(value: T | null | undefined) => Option<T>;
 /**
  * Try executing the given function and returning a "Ok" value if it succeeds, or a "Err" value if it fails
  *
  * @since 0.9.0
- * @param {() => T} f - function to try
+ * @param {() => T} fn - function to try
  * @returns {Result<T, E>} - "Ok" value if the function succeeds, or a "Err" value if it fails
  */
-declare const result: <T, E extends Error>(f: () => T) => Result<T, E>;
+declare const attempt: <T, E extends Error>(fn: () => T) => Result<T, E>;
 /**
- * Create an async task that retries the given function with exponential backoff if it fails
+ * Create an async task to obtain a resouce; retries the given function with exponential backoff if it fails
  *
  * @since 0.9.0
  * @param {() => Promise<T>} fn - async function to try and maybe retry
@@ -100,13 +100,13 @@ declare const result: <T, E extends Error>(f: () => T) => Result<T, E>;
  * @param {number} [delay=1000] - initial delay in milliseconds between retries; default is 1000ms
  * @returns {Promise<T>} - promise that resolves to the result of the function or fails with the last error encountered
  */
-declare const task: <T, E extends Error>(fn: () => Promise<T>, retries?: number, delay?: number) => Promise<Result<T, E>>;
+declare const obtain: <T, E extends Error>(fn: () => Promise<T>, retries?: number, delay?: number) => Promise<Result<T, E>>;
 /**
  * Helper function to execute a series of functions in sequence
  *
  * @since 0.9.0
- * @param {((v: unknown) => unknown)[]} fs
+ * @param {((v: unknown) => unknown)[]} fns
  * @returns
  */
-declare const flow: (...fs: unknown[]) => unknown;
-export { isDefined, isDefinedObject, isObjectOfType, isFunction, callFunction, isOk, isNil, isErr, isResult, Ok, Nil, Err, option, result, task, flow };
+declare const flow: (...fns: unknown[]) => unknown;
+export { isDefined, isDefinedObject, isObjectOfType, isFunction, callFunction, isOk, isNil, isErr, isResult, Ok, Nil, Err, ensure, attempt, obtain, flow };

@@ -121,7 +121,7 @@ const Nil = (): Nil => ({
 	chain: Nil,
 	filter: Nil,
 	guard: Nil,
-	or: <T>(value: T) => option(value),
+	or: <T>(value: T) => ensure(value),
 	catch: Nil,
 	match: <U, F extends Error>(cases: Cases<undefined, Error, U, F>) =>
 		isFunction(cases[TYPE_NIL])
@@ -144,7 +144,7 @@ const Err = <E extends Error>(error: E): Err<E> => ({
 	chain: () => Err<E>(error),
 	filter: Nil,
 	guard: Nil,
-	or: <T>(value: T) => option(value),
+	or: <T>(value: T) => ensure(value),
 	catch: <U, F extends Error>(fn: (error: E) => Result<U, F>) => fn(error),
 	match: <U, F extends Error>(cases: Cases<undefined, E, U, F>) =>
 		isFunction(cases[TYPE_ERR])
@@ -160,26 +160,26 @@ const Err = <E extends Error>(error: E): Err<E> => ({
  * @param {T | null | undefined} value - value to wrap in an array
  * @returns {Option<T>} - option of either Ok or Nil, depending on whether the input is nullish
  */
-const option = <T>(value: T | null | undefined): Option<T> =>
+const ensure = <T>(value: T | null | undefined): Option<T> =>
 	isDefined(value) ? Ok<T>(value) : Nil()
 
 /**
  * Try executing the given function and returning a "Ok" value if it succeeds, or a "Err" value if it fails
  * 
  * @since 0.9.0
- * @param {() => T} f - function to try
+ * @param {() => T} fn - function to try
  * @returns {Result<T, E>} - "Ok" value if the function succeeds, or a "Err" value if it fails
  */
-const result = <T, E extends Error>(f: () => T): Result<T, E> => {
+const attempt = <T, E extends Error>(fn: () => T): Result<T, E> => {
 	try {
-		return option(f())
+		return ensure(fn())
     } catch (error) {
         return Err(error as E)
     }
 }
 
 /**
- * Create an async task that retries the given function with exponential backoff if it fails
+ * Create an async task to obtain a resouce; retries the given function with exponential backoff if it fails
  * 
  * @since 0.9.0
  * @param {() => Promise<T>} fn - async function to try and maybe retry
@@ -187,16 +187,16 @@ const result = <T, E extends Error>(f: () => T): Result<T, E> => {
  * @param {number} [delay=1000] - initial delay in milliseconds between retries; default is 1000ms
  * @returns {Promise<T>} - promise that resolves to the result of the function or fails with the last error encountered
  */
-const task = async <T, E extends Error>(
+const obtain = async <T, E extends Error>(
     fn: () => Promise<T>,
     retries: number = 0,
     delay: number = 1000
 ): Promise<Result<T, E>> => {
     const attemptTask = async (retries: number, delay: number): Promise<Result<T, E>> => {
         return fn()
-            .then(result => option<T>(result))
-            .catch(async (error: unknown) => {
-                if (retries < 1) return Err(error as E)
+            .then(result => ensure(result))
+            .catch(async (error) => {
+                if (retries < 1) return Err(error)
                 await new Promise(resolve => setTimeout(resolve, delay)) // wait for the delay
                 return attemptTask(retries - 1, delay * 2) // retry with exponential backoff
             });
@@ -208,13 +208,13 @@ const task = async <T, E extends Error>(
  * Helper function to execute a series of functions in sequence
  * 
  * @since 0.9.0
- * @param {((v: unknown) => unknown)[]} fs 
+ * @param {((v: unknown) => unknown)[]} fns 
  * @returns 
  */
-const flow = (...fs: unknown[]) => fs.reduce((acc, f) => callFunction(f, acc))
+const flow = (...fns: unknown[]) => fns.reduce((acc, fn) => callFunction(fn, acc))
 
 export {
 	isDefined, isDefinedObject, isObjectOfType, isFunction, callFunction,
 	isOk, isNil, isErr, isResult,
-	Ok, Nil, Err, option, result, task, flow
+	Ok, Nil, Err, ensure, attempt, obtain, flow
 }
