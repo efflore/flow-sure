@@ -1,63 +1,55 @@
-type Nil = {
-    readonly [Symbol.toStringTag]: 'Nil';
-    map: (_: (_: undefined) => unknown) => Nil;
-    flatMap: (_: (_: undefined) => Result<unknown, Error>) => Nil;
-    filter: (_: (_: undefined) => false) => Nil;
-    guard: (_: (_: undefined) => false) => Nil;
-    or: <T>(value: T) => Option<T>;
-    catch: (_: (_: Error) => Result<unknown, Error>) => Nil;
-    match: <T, E extends Error>(cases: Cases<T, E>) => Result<T, E>;
-    get: () => void;
-};
 type Ok<T> = {
     readonly [Symbol.toStringTag]: 'Ok';
     value: T;
-    map: <U, E extends Error>(fn: (value: T) => U) => Result<U, E>;
-    flatMap: <U, E extends Error>(fn: (value: T) => Result<U, E>) => Result<U, E>;
+    map: <U>(fn: (value: T) => U) => Ok<U>;
+    chain: <U, E extends Error>(fn: (value: T) => Result<U, E>) => Result<U, E>;
     filter: (fn: (value: T) => boolean) => Option<T>;
     guard: <U extends T>(fn: (value: T) => value is U) => Option<U>;
-    or: (_: unknown) => Ok<T>;
-    catch: (_: (_: Error) => Result<unknown, Error>) => Ok<T>;
-    match: <T, E extends Error>(cases: Cases<T, E>) => Result<T, E>;
+    or: (_: any) => Ok<T>;
+    catch: (_: any) => Ok<T>;
+    match: <U, F extends Error>(cases: Cases<T, Error, U, F>) => Result<U, F>;
     get: () => T;
+};
+type Nil = {
+    readonly [Symbol.toStringTag]: 'Nil';
+    map: (_: any) => Nil;
+    chain: (_: any) => Nil;
+    filter: (_: any) => Nil;
+    guard: (_: any) => Nil;
+    or: <T>(value: T) => Option<T>;
+    catch: (_: any) => Nil;
+    match: <U, F extends Error>(cases: Cases<undefined, Error, U, F>) => Result<U, F>;
+    get: () => undefined;
 };
 type Err<E extends Error> = {
     readonly [Symbol.toStringTag]: 'Err';
     error: E;
-    map: (_: (_: undefined) => unknown) => Err<E>;
-    flatMap: (_: (_: undefined) => Result<unknown, Error>) => Err<E>;
-    filter: (_: (_: undefined) => false) => Err<E>;
-    guard: (_: (_: undefined) => false) => Err<E>;
+    map: (_: any) => Err<E>;
+    chain: (_: any) => Err<E>;
+    filter: (_: any) => Nil;
+    guard: (_: any) => Nil;
     or: <T>(value: T) => Option<T>;
-    catch: <T, F extends Error>(fn: (error: E) => Result<T, F>) => Result<T, F>;
-    match: <T, E extends Error>(cases: Cases<T, E>) => Result<T, E>;
+    catch: <U, F extends Error>(fn: (error: E) => Result<U, F>) => Result<U, F>;
+    match: <U, F extends Error>(cases: Cases<undefined, E, U, F>) => Result<U, F>;
     get: () => never;
 };
 type Option<T> = Ok<T> | Nil;
 type Result<T, E extends Error> = Ok<T> | Nil | Err<E>;
-type Cases<T, E extends Error> = {
-    [TYPE_OK]?: (value: unknown) => Result<T, E>;
-    [TYPE_NIL]?: () => Result<T, E>;
-    [TYPE_ERR]?: (error: Error) => Result<T, E>;
-    else?: (value: unknown) => Result<T, E>;
+type Cases<T, E extends Error, U, F extends Error> = {
+    [TYPE_OK]?: (value: T) => Result<U, F>;
+    [TYPE_NIL]?: () => Result<U, F>;
+    [TYPE_ERR]?: (error: E) => Result<U, F>;
 };
 declare const TYPE_OK = "Ok";
 declare const TYPE_NIL = "Nil";
 declare const TYPE_ERR = "Err";
 declare const isDefined: (value: unknown) => value is NonNullable<typeof value>;
-declare const isObjectOfType: <T>(type: string) => (value: unknown) => value is {} & {
-    [Symbol.toStringTag]: T;
-};
-declare const isOk: (value: unknown) => value is {} & {
-    [Symbol.toStringTag]: unknown;
-};
-declare const isNil: (value: unknown) => value is {} & {
-    [Symbol.toStringTag]: unknown;
-};
-declare const isErr: (value: unknown) => value is {} & {
-    [Symbol.toStringTag]: unknown;
-};
-declare const isResult: <T, E extends Error>(value: unknown) => value is Ok<T> | Err<E> | Nil;
+declare const isDefinedObject: (value: unknown) => value is Record<PropertyKey, unknown>;
+declare const isObjectOfType: <T>(value: unknown, type: string) => value is T;
+declare const isOk: <T>(value: unknown) => value is Ok<T>;
+declare const isNil: (value: unknown) => value is Nil;
+declare const isErr: <E extends Error>(value: unknown) => value is Err<E>;
+declare const isResult: <T, E extends Error>(value: unknown) => value is Ok<T> & Nil & Err<E>;
 declare const isFunction: (value: unknown) => value is Function;
 declare const callFunction: (fn: unknown, ...args: unknown[]) => unknown;
 /**
@@ -65,7 +57,7 @@ declare const callFunction: (fn: unknown, ...args: unknown[]) => unknown;
  *
  * @since 0.9.0
  * @param {T} value - value to wrap in an "Ok" value
- * @returns {Ok<T>} - "Ok" value with the given value
+ * @returns {Ok<T, E>} - "Ok" value with the given value
  */
 declare const Ok: <T>(value: T) => Ok<T>;
 /**
@@ -79,16 +71,16 @@ declare const Nil: () => Nil;
  * Create a "Err" value, representing a failure
  *
  * @since 0.9.0
- * @param {E extends Error} error - error to wrap in a "Err" value
+ * @param {E} error - error to wrap in a "Err" value
  * @returns {Err<E>} - "Err" value with the given error
  */
 declare const Err: <E extends Error>(error: E) => Err<E>;
 /**
- * Create an array for a given value to gracefully handle nullable values
+ * Create an option for a given value to gracefully handle nullable values
  *
  * @since 0.9.0
  * @param {T | null | undefined} value - value to wrap in an array
- * @returns {T[]} - array of either zero or one element, depending on whether the input is nullish
+ * @returns {Option<T>} - option of either Ok or Nil, depending on whether the input is nullish
  */
 declare const option: <T>(value: T | null | undefined) => Option<T>;
 /**
@@ -117,4 +109,4 @@ declare const task: <T, E extends Error>(fn: () => Promise<T>, retries?: number,
  * @returns
  */
 declare const flow: (...fs: unknown[]) => unknown;
-export { TYPE_OK, TYPE_NIL, TYPE_ERR, isDefined, isObjectOfType, isOk, isNil, isErr, isResult, isFunction, callFunction, Ok, Nil, Err, option, result, task, flow };
+export { isDefined, isDefinedObject, isObjectOfType, isFunction, callFunction, isOk, isNil, isErr, isResult, Ok, Nil, Err, option, result, task, flow };

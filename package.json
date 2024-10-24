@@ -1,11 +1,11 @@
 {
   "name": "@efflore/result",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "A Result monad in TypeScript. Data types Ok, Nil, Err with option(), result() and async task() functions.",
   "main": "index.js",
   "types": "index.d.ts",
   "scripts": {
-	"build": "bun build index.ts --outdir ./ --minify",
+	"build": "bun build index.ts --outdir ./ --minify && bunx tsc",
 	"test": "echo \"Error: no test specified\" && exit 1"
   },
   "module": "index.ts",

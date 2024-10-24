@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { Ok, Nil, Err, isOk } from "./index";
+import { Ok, Nil, Err } from "./index";
 
 // Test for Ok result
 describe("Result Monad", () => {
@@ -37,52 +37,52 @@ const doubleOk = (x: number) => Ok(x * 2);
 
 // Test Monad Laws for Ok
 describe("Monad Laws for Ok", () => {
-    test("Left Identity: Ok(x).flatMap(f) === f(x)", () => {
+    test("Left Identity: Ok(x).chain(f) === f(x)", () => {
         const x = 5;
         const f = addOneOk;
-        const result1 = Ok(x).flatMap(f);
+        const result1 = Ok(x).chain(f);
         const result2 = f(x);
         expect(result1.get()).toBe(result2.get());
     });
 
-    test("Right Identity: Ok(x).flatMap(Ok) === Ok(x)", () => {
+    test("Right Identity: Ok(x).chain(Ok) === Ok(x)", () => {
         const x = 5;
-        const result1 = Ok(x).flatMap(Ok);
+        const result1 = Ok(x).chain(Ok);
         const result2 = Ok(x);
         expect(result1.get()).toBe(result2.get());
     });
 
-    test("Associativity: (Ok(x).flatMap(f)).flatMap(g) === Ok(x).flatMap(x => f(x).flatMap(g))", () => {
+    test("Associativity: (Ok(x).chain(f)).chain(g) === Ok(x).chain(x => f(x).chain(g))", () => {
         const x = 5;
         const f = addOneOk;
         const g = doubleOk;
-        const result1 = Ok(x).flatMap(f).flatMap(g);
-        const result2 = Ok(x).flatMap(x => f(x).flatMap(g));
+        const result1 = Ok(x).chain(f).chain(g);
+        const result2 = Ok(x).chain(x => f(x).chain(g));
         expect(result1.get()).toBe(result2.get());
     });
 });
 
 // Test Monad Laws for Err
 describe("Monad Laws for Err", () => {
-    test("Left Identity: Err.flatMap(f) === Err", () => {
+    test("Left Identity: Err.chain(f) === Err", () => {
         const err = Err(new Error("Error"));
         const f = addOneOk;
-        const result = err.flatMap(f);
+        const result = err.chain(f);
         expect(result.error).toBe(err.error);
     });
 
-    test("Right Identity: Err.flatMap(Ok) === Err", () => {
+    test("Right Identity: Err.chain(Ok) === Err", () => {
         const err = Err(new Error("Error"));
-        const result = err.flatMap(Ok);
+        const result = err.chain(Ok);
         expect(result.error).toBe(err.error);
     });
 
-    test("Associativity: (Err.flatMap(f)).flatMap(g) === Err.flatMap(x => f(x).flatMap(g))", () => {
+    test("Associativity: (Err.chain(f)).chain(g) === Err.chain(x => f(x).chain(g))", () => {
         const err = Err(new Error("Error"));
         const f = addOneOk;
         const g = doubleOk;
-        const result1 = err.flatMap(f).flatMap(g);
-        const result2 = err.flatMap(x => f(x).flatMap(g));
+        const result1 = err.chain(f).chain(g);
+        const result2 = err.chain(x => f(x).chain(g));
         expect(result1.error).toBe(err.error);
         expect(result2.error).toBe(err.error);
     });
@@ -90,22 +90,22 @@ describe("Monad Laws for Err", () => {
 
 // Test Monad Laws for Nil
 describe("Monad Laws for Nil", () => {
-    test("Left Identity: Nil.flatMap(f) === Nil", () => {
+    test("Left Identity: Nil.chain(f) === Nil", () => {
         const f = addOneOk;
-        const result = Nil().flatMap(f);
+        const result = Nil().chain(f);
         expect(result.get()).toBe(Nil().get());
     });
 
-    test("Right Identity: Nil.flatMap(Ok) === Nil", () => {
-        const result = Nil().flatMap(Ok);
+    test("Right Identity: Nil.chain(Ok) === Nil", () => {
+        const result = Nil().chain(Ok);
         expect(result.get()).toBe(Nil().get());
     });
 
-    test("Associativity: (Nil.flatMap(f)).flatMap(g) === Nil.flatMap(x => f(x).flatMap(g))", () => {
+    test("Associativity: (Nil.chain(f)).chain(g) === Nil.chain(x => f(x).chain(g))", () => {
         const f = addOneOk;
         const g = doubleOk;
-        const result1 = Nil().flatMap(f).flatMap(g);
-        const result2 = Nil().flatMap(x => f(x).flatMap(g));
+        const result1 = Nil().chain(f).chain(g);
+        const result2 = Nil().chain(x => f(x).chain(g));
         expect(result1.get()).toBe(Nil().get());
         expect(result2.get()).toBe(Nil().get());
     });
