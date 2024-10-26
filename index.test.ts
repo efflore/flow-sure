@@ -1,39 +1,19 @@
 import { describe, test, expect } from "bun:test";
-import { Ok, Nil, Err, isOk, isNil, isErr, ensure, attempt, obtain } from "./index";
+import { Ok, Nil, Err, isOk, isNil, isErr, ensure, attempt, obtain, flow, Result } from "./index";
 
-// Test for Ok result
-describe("Result Monad", () => {
-    test("should return Ok for a successful value", () => {
-        const res = Ok(42);
-        expect(res.get()).toBe(42);
-        expect(res.map(x => x + 1).get()).toBe(43);
-    });
+/* === Types === */
 
-    // Test for Err result
-    test("should handle errors correctly", () => {
-        const error = new Error("Something went wrong");
-        const res = Err(error);
-        expect(res.get).toThrow("Something went wrong");
-        expect(res.match({
-            Err: (err) => err.message === "Something went wrong" ? Ok(42) : Nil(),
-            Ok: () => Nil()
-        }).get()).toBe(42);
-    });
+type TreeNode = { id: number; parentId: number; name: string, children?: Set<TreeNode> }
+type TreeStructure = { roots: Set<TreeNode>, orphans: Set<TreeNode>}
 
-    // Test for Nil result
-    test("should handle Nil correctly", () => {
-        const res = Nil();
-        expect(res.get()).toBeUndefined();
-        expect(res.map(x => x + 1).get()).toBeUndefined(); // Nil should remain Nil
-    });
-});
+/* === Utility Functions === */
 
-// Helper functions for testing
 const identity = <T>(x: T): T => x;
 const addOne = (x: number) => x + 1;
 const addOneOk = (x: number) => Ok(x + 1);
 const double = (x: number) => x * 2;
 const doubleOk = (x: number) => Ok(x * 2);
+const half = (x: number) => x / 2;
 const isPositive = (x: number) => x > 0;
 const isEven = (x: number) => x % 2 === 0;
 const isString = (x: unknown): x is string => typeof x === 'string';
@@ -47,6 +27,100 @@ const handleErr = (error: Error) => Ok(`Recovered from error: ${error.message}`)
 const successfulTask = () => Promise.resolve(10);
 const nullTask = () => Promise.resolve(null);
 const failingTask = () => Promise.reject(new Error("Task failed"));
+
+/* === Tests === */
+
+describe("Obtain Use Case", () => {
+
+	// Mock fetch function to simulate network request with 200ms delay and 30% failure rate
+	const mockFetch = (url: string): Promise<Response> => new Promise((resolve, reject) => {
+		const response: Response = attempt(() => Response.json({
+			value: [
+				{ id: 0, parentId: null, name: "Root" },
+				{ id: 1, parentId: 0, name: "Level 1, Item 1" },
+				{ id: 2, parentId: 0, name: "Level 1, Item 2" },
+				{ id: 3, parentId: 0, name: "Level 1, Item 3" },
+				{ id: 4, parentId: 1, name: "Level 2, Item 1.1" },
+				{ id: 5, parentId: 1, name: "Level 2, Item 1.2" },
+				{ id: 6, parentId: 2, name: "Level 2, Item 2.1" },
+				{ id: 7, parentId: 2, name: "Level 2, Item 2.2" },
+				{ id: 8, parentId: 2, name: "Level 2, Item 2.3" }
+			]
+		}))
+			// In case Response.json() throws an error, return a mock error response
+			.catch((error: Error) => Response.json(
+				{ error: error.message },
+				{ status: 500, statusText: "Internal Server Error" }
+			))
+			.get() as Response
+		setTimeout(() => Math.random() < 0.3
+			? reject(new Error("Mock network error: Request failed"))
+			: resolve(response)
+		, 200) // Simulate 200ms delay
+	})
+
+	// Step 1: Fetch data
+	const fetchData = async () => {
+		const response = await mockFetch('/api/data')
+		if (!response.ok) return Err(new Error(`Failed to fetch data: ${response.statusText}`))
+		return await response.json()
+	}
+
+	// Step 2: Validate data
+	const validateData = (data: any) =>
+		typeof data === "object"
+			&& "value" in data
+			&& Array.isArray(data.value)
+
+	// Step 3: Build tree structure
+	const buildTreeStructure = (items: TreeNode[]): TreeStructure => {
+		const idMap = new Map<number, TreeNode>()
+		const roots = new Set<TreeNode>()
+		const orphans = new Set<TreeNode>()
+		
+		// Populate the idMap
+		for (const item of items) {
+			item.children = new Set<TreeNode>()
+			idMap.set(item.id, item)
+		}
+			
+		// Attach each item to its parent's `children` array if possible
+		for (const item of items)
+			item.parentId == null
+				? roots.add(item)
+				: idMap.get(item.parentId)?.children!.add(item)
+					|| orphans.add(item)
+		
+		return { roots, orphans }
+	}
+
+	const fetchTreeData = async () => {
+
+		// 3 attempts, exponential backoff with initial 1000ms delay
+		const data = await obtain(fetchData, 3, 1000)
+
+		// Validate the data and build the tree structure
+		return data
+			.filter(validateData)
+			.map((x: { value: any[] }) => buildTreeStructure(x.value))
+			.match({
+				Nil: () => Err(new Error("Data is invalid, missing 'value', or 'value' is not an array"))
+			})
+	}
+
+	test("returns the correct result", async () => {
+		const result = await fetchTreeData()
+		if (isErr(result)) expect(result.error.message).toBeString()
+		else {
+			const obj = result.get() as TreeStructure
+            expect(obj.roots).toBeInstanceOf(Set)
+			expect(obj.orphans).toBeInstanceOf(Set)
+			expect(obj.roots.size).toBeGreaterThan(0)
+			expect(obj.orphans.size).toBe(0)
+		}
+	})
+
+});
 
 // Test Monad Laws for Ok
 describe("Monad Laws for Ok", () => {
@@ -257,12 +331,12 @@ describe("Guard Trait for Err", () => {
 // Ok Monad
 describe("Or Trait for Ok", () => {
     test("Ok.or() has no effect, keeps original value", () => {
-        const res = Ok(5).or(10);
+        const res = Ok(5).or(() => 10);
         expect(res.get()).toBe(5); // Ok(5) remains unchanged, or() has no effect
     });
 
     test("Ok.or() with nullish fallback, keeps original value", () => {
-        const res = Ok(5).or(null);
+        const res = Ok(5).or(() => null);
         expect(res.get()).toBe(5); // Ok(5) remains unchanged, or() has no effect
     });
 });
@@ -270,12 +344,12 @@ describe("Or Trait for Ok", () => {
 // Nil Monad
 describe("Or Trait for Nil", () => {
     test("Nil.or() provides fallback value as Ok", () => {
-        const res = Nil().or(10);
+        const res = Nil().or(() => 10);
         expect(res.get()).toBe(10); // Nil becomes Ok(10) with the fallback value
     });
 
     test("Nil.or() with nullish fallback, remains Nil", () => {
-        const res = Nil().or(null);
+        const res = Nil().or(() => null);
         expect(isNil(res)).toBe(true); // Nil remains Nil as fallback is nullish
     });
 });
@@ -284,13 +358,13 @@ describe("Or Trait for Nil", () => {
 describe("Or Trait for Err", () => {
     test("Err.or() provides fallback value as Ok", () => {
         const err = Err(new Error("Something went wrong"));
-        const res = err.or(10);
+        const res = err.or(() => 10);
         expect(res.get()).toBe(10); // Err becomes Ok(10) with the fallback value
     });
 
     test("Err.or() with nullish fallback, becomes Nil", () => {
         const err = Err(new Error("Something went wrong"));
-        const res = err.or(null);
+        const res = err.or(() => null);
         expect(isNil(res)).toBe(true); // Err becomes Nil as fallback is nullish
     });
 });
@@ -448,7 +522,6 @@ describe("Attempt Function", () => {
     });
 });
 
-
 // Tests for obtain()
 
 describe("Obtain Function", () => {
@@ -469,3 +542,37 @@ describe("Obtain Function", () => {
         expect(() => res.get()).toThrow("Task failed"); // Ensure the error is properly thrown
     });
 });
+
+// Tests for flow()
+
+describe("Flow Function", () => {
+	test("flow() with a successful Promise resolves to Ok", async () => {
+        const res = await flow(
+            5,
+            (x: Result<number, Error>) => x.map(double),
+            async (x: Result<number, Error>) => await obtain(() => Promise.resolve(x.map((y: number) => {
+				console.log(x, y)
+				return y + 10
+			}))),
+            (x: Result<number, Error>) => {
+				console.log(x)
+				return x.map(half)
+			}
+        ) as Result<number, Error>;
+		console.log(res);
+        expect(isOk(res)).toBe(true); // Flow resolves to Ok
+        expect(res.get()).toBe(10); // (5 * 2 + 10) / 2 = 10
+    });
+
+    test("flow() with a Promise rejecting in the middle rejects with Err", async () => {
+        const res = await flow(
+            5,
+            (x: Result<number, Error>) => x.map(double),
+            async () => await obtain(() => Promise.reject(Err(new Error("Error in second stage")))),
+            (x: Result<number, Error>) => x.map(half)
+        ) as Result<number, Error>;
+		console.log(res);
+        expect(isErr(res)).toBe(true); // Flow rejects with Err
+		expect(res.get).toThrow("Error in second stage"); // Ensure the error is properly thrown
+	});
+})
