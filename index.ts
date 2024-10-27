@@ -42,11 +42,14 @@ type Maybe<T> = Ok<T> | Nil
 
 type Result<T, E extends Error> = Ok<T> | Nil | Err<E>
 
+type AsyncResult<T, E extends Error> = 
+    T | Result<T, E> | Promise<T | Result<T, E>> | PromiseLike<T | Result<T, E>>
+
 type Cases<T, E extends Error, U, F extends Error> = {
     [TYPE_OK]?: (value: T) => Result<U, F>
     [TYPE_NIL]?: () => Result<U, F>
     [TYPE_ERR]?: (error: E) => Result<U, F>
-};
+}
 
 /* === Constants === */
 
@@ -56,11 +59,14 @@ const TYPE_ERR = 'Err'
 
 /* === Utility Functions === */
 
+const isFunction = (value: unknown): value is Function =>
+    typeof value === 'function'
+
 const isDefined = (value: unknown): value is NonNullable<typeof value> =>
     value != null
 
 const isDefinedObject = (value: unknown): value is Record<PropertyKey, unknown> =>
-	typeof value === 'object' && isDefined(value)	
+	typeof value === 'object' && isDefined(value)
 
 const isObjectOfType = <T>(value: unknown, type: string): value is T =>
 	isDefinedObject(value) && (value[Symbol.toStringTag] === type)
@@ -74,10 +80,10 @@ const isNil = (value: unknown): value is Nil =>
 const isErr = <E extends Error>(value: unknown): value is Err<E> =>
 	isObjectOfType(value, TYPE_ERR)
 
-const isMaybe = <T>(value: unknown): value is Ok<T> | Nil =>
+const isMaybe = <T>(value: unknown): value is Maybe<T> =>
 	isOk(value) || isNil(value)
 
-const isResult = <T, E extends Error>(value: unknown): value is Ok<T> & Nil & Err<E> =>
+const isResult = <T, E extends Error>(value: unknown): value is Result<T, E> =>
 	isOk(value) || isNil(value) || isErr(value)
 
 const errOrEnsure = <T, E extends Error>(value: T | Result<T, Error>): Result<T, E> =>
@@ -85,14 +91,6 @@ const errOrEnsure = <T, E extends Error>(value: T | Result<T, Error>): Result<T,
 
 const wrapErr = <E extends Error>(error: unknown): Err<E> =>
 	Err(error instanceof Error ? error as E : new Error(String(error)) as E)
-
-
-// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
-const isFunction: (value: unknown) => value is Function = (value: unknown) =>
-    typeof value === 'function'
-
-const callFunction = (fn: unknown, ...args: unknown[]): unknown =>
-    isFunction(fn) ? fn(...args) : undefined
 
 /* === Exported Functions === */
 
@@ -180,7 +178,7 @@ const ensure = <T>(value: T | Maybe<T> | null | undefined): Maybe<T> =>
  * @param {() => T | Result<T>} fn - function to try
  * @returns {Result<T, E>} - "Ok" value if the function succeeds, or a "Err" value if it fails
  */
-const attempt = <T, E extends Error>(fn: () => T | Maybe<T>): Result<T, E> => {
+const attempt = <T, E extends Error>(fn: () => T | Result<T, E>): Result<T, E> => {
 	try {
 		const result = fn()
 		return errOrEnsure(result)
@@ -190,21 +188,21 @@ const attempt = <T, E extends Error>(fn: () => T | Maybe<T>): Result<T, E> => {
 }
 
 /**
- * Create an async task to obtain a resouce; retries the given function with exponential backoff if it fails
+ * Create an async task to gather a resouce; retries the given function with exponential backoff if it fails
  * 
  * @since 0.9.0
- * @param {() => Promise<T>} fn - async function to try and maybe retry
+ * @param {() => AsyncResult<T, E>} fn - async function to try and maybe retry
  * @param {number} [retries=0] - number of times to retry the function if it fails; default is 0 (no retries)
  * @param {number} [delay=1000] - initial delay in milliseconds between retries; default is 1000ms
- * @returns {Promise<T>} - promise that resolves to the result of the function or fails with the last error encountered
+ * @returns {Promise<Result<T, E>>} - promise that resolves to the result of the function or fails with the last error encountered
  */
-const obtain = async <T, E extends Error>(
-    fn: () => Promise<T | Result<T, E>>,
+const gather = async <T, E extends Error>(
+    fn: () => AsyncResult<T, E>,
     retries: number = 0,
     delay: number = 1000
 ): Promise<Result<T, E>> => {
     const attemptTask = async (retries: number, delay: number): Promise<Result<T, E>> => {
-        return fn()
+        return Promise.resolve(fn())
             .then((result) => errOrEnsure<T, E>(result))
             .catch(async (error) => {
                 if (retries < 1) return wrapErr<E>(error)
@@ -219,29 +217,24 @@ const obtain = async <T, E extends Error>(
  * Helper function to execute a series of functions in sequence
  * 
  * @since 0.9.0
- * @param {((v: T) => U)[]} fns 
- * @returns 
+ * @param {[T | (() => AsyncResult<T, E>), ...((input: Result<T, E>) => AsyncResult<T, E>)[]]} fns - array of functions to execute in sequence
+ * @returns {Promise<Result<any, any>>} - promise that resolves to the result of the last function or fails with the first error encountered
  */
 async function flow<T, E extends Error>(
-	...fns: [T | (() => Result<T, E>), ...((input: Result<T, E>) => Result<any, any> | Promise<Result<any, any>>)[]]
+	...fns: [T | (() => AsyncResult<T, E>), ...((input: Result<T, E>) => AsyncResult<T, E>)[]]
 ): Promise<Result<any, any>> {
     let result: any = isFunction(fns[0]) ? Nil() : ensure(fns.shift())
     for (const fn of fns) {
-		if (!isFunction(fn)) return Err(new TypeError('Expected function in flow'))
-        if (isErr(result)) break
-        result = attempt(
-			isFunction(result.then)
-				? async () => await result.then(fn)
-				: () => fn(result)
-		)
-        if (result && isFunction(result.then)) await result
+		if (isErr(result)) break
+		if (!isFunction(fn)) return Err(new TypeError('Expected a function in flow'))
+		result = await gather(() => fn(result))
     }
     return result
 }
 
 export {
-	type Result, type Cases,
-	isDefined, isDefinedObject, isObjectOfType, isFunction, callFunction,
+	type Maybe, type Result, type AsyncResult, type Cases,
+	isDefined, isDefinedObject, isObjectOfType, isFunction,
 	isOk, isNil, isErr, isMaybe, isResult,
-	Ok, Nil, Err, ensure, attempt, obtain, flow
+	Ok, Nil, Err, ensure, attempt, gather, flow
 }

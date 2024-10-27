@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { Ok, Nil, Err, isOk, isNil, isErr, ensure, attempt, obtain, flow, Result } from "./index";
+import { Ok, Nil, Err, isOk, isNil, isErr, ensure, attempt, gather, flow, Result } from "./index";
 
 /* === Types === */
 
@@ -30,7 +30,7 @@ const failingTask = () => Promise.reject(new Error("Task failed"));
 
 /* === Tests === */
 
-describe("Obtain Use Case", () => {
+describe("Gather Use Case", () => {
 
 	// Mock fetch function to simulate network request with 200ms delay and 30% failure rate
 	const mockFetch = (url: string): Promise<Response> => new Promise((resolve, reject) => {
@@ -97,7 +97,7 @@ describe("Obtain Use Case", () => {
 	const fetchTreeData = async () => {
 
 		// 3 attempts, exponential backoff with initial 1000ms delay
-		const data = await obtain(fetchData, 3, 1000)
+		const data = await gather(fetchData, 3, 1000)
 
 		// Validate the data and build the tree structure
 		return data
@@ -522,22 +522,22 @@ describe("Attempt Function", () => {
     });
 });
 
-// Tests for obtain()
+// Tests for gather()
 
-describe("Obtain Function", () => {
-    test("obtain() with a successful Promise resolves to Ok", async () => {
-        const res = await obtain(successfulTask);
+describe("Gather Function", () => {
+    test("gather() with a successful Promise resolves to Ok", async () => {
+        const res = await gather(successfulTask);
         expect(isOk(res)).toBe(true); // Task resolves to Ok
         expect(res.get()).toBe(10);
     });
 
-    test("obtain() with a Promise resolving to null resolves to Nil", async () => {
-        const res = await obtain(nullTask);
+    test("gather() with a Promise resolving to null resolves to Nil", async () => {
+        const res = await gather(nullTask);
         expect(isNil(res)).toBe(true); // Task resolves to Nil
     });
 
-    test("obtain() with a failing Promise rejects with Err", async () => {
-        const res = await obtain(failingTask);
+    test("gather() with a failing Promise rejects with Err", async () => {
+        const res = await gather(failingTask);
         expect(isErr(res)).toBe(true); // Task rejects with Err
         expect(() => res.get()).toThrow("Task failed"); // Ensure the error is properly thrown
     });
@@ -548,18 +548,14 @@ describe("Obtain Function", () => {
 describe("Flow Function", () => {
 	test("flow() with a successful Promise resolves to Ok", async () => {
         const res = await flow(
-            5,
-            (x: Result<number, Error>) => x.map(double),
-            async (x: Result<number, Error>) => await obtain(() => Promise.resolve(x.map((y: number) => {
-				console.log(x, y)
-				return y + 10
-			}))),
-            (x: Result<number, Error>) => {
-				console.log(x)
-				return x.map(half)
-			}
-        ) as Result<number, Error>;
-		console.log(res);
+			5,
+			(x) => x.map(double),
+			async (x) => gather(() => isOk(x)
+				? Promise.resolve(x.value + 10)
+				: Promise.reject("Error in first stage")
+			),
+			(x) => x.map(half)
+		);
         expect(isOk(res)).toBe(true); // Flow resolves to Ok
         expect(res.get()).toBe(10); // (5 * 2 + 10) / 2 = 10
     });
@@ -567,12 +563,11 @@ describe("Flow Function", () => {
     test("flow() with a Promise rejecting in the middle rejects with Err", async () => {
         const res = await flow(
             5,
-            (x: Result<number, Error>) => x.map(double),
-            async () => await obtain(() => Promise.reject(Err(new Error("Error in second stage")))),
-            (x: Result<number, Error>) => x.map(half)
+            (x) => x.map(double),
+			async (_) => gather(() => Promise.reject("Error in second stage")),
+			(x) => x.map(half)
         ) as Result<number, Error>;
-		console.log(res);
         expect(isErr(res)).toBe(true); // Flow rejects with Err
-		expect(res.get).toThrow("Error in second stage"); // Ensure the error is properly thrown
+		expect(() => res.get()).toThrow("Error in second stage"); // Ensure the error is properly thrown
 	});
-})
+});

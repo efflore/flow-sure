@@ -1,7 +1,7 @@
 {
   "name": "@efflore/flow-sure",
-  "version": "0.9.3",
-  "description": "FlowSure - a Result monad in TypeScript. Data types Ok, Nil, Err with ensure(), attempt() and async obtain() functions.",
+  "version": "0.9.4",
+  "description": "FlowSure - a Result monad in TypeScript. Data types Ok, Nil, Err with ensure(), attempt() async gather() and flow() functions.",
   "main": "index.js",
   "types": "index.d.ts",
   "scripts": {
