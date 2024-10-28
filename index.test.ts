@@ -30,6 +30,36 @@ const failingTask = () => Promise.reject(new Error("Task failed"));
 
 /* === Tests === */
 
+describe("Ok Use Case", () => {
+
+    test("isOk should return true for Ok instances", () => {
+        const ok = Ok(10);
+        expect(isOk(ok)).toBe(true);
+    });
+
+    test("isOk should return false for Nil instances", () => {
+        const nil = Nil();
+        expect(isOk(nil)).toBe(false);
+    });
+
+    test("isOk should return false for Err instances", () => {
+        const err = Err(new Error("Error"));
+        expect(isOk(err)).toBe(false);
+    });
+
+    test("map and filter should apply functions to the value of Ok instances", () => {
+        const result = Ok(5).map(x => x * 2).filter(x => x > 5);
+        expect(isOk(result)).toBe(true);
+        expect(result.get()).toBe(10);
+        result.match({
+            Ok: value => expect(typeof value).toBe('number'),
+            // @ts-expect-error
+            Nil: value => expect(typeof value).toBe('undefined'),
+            Err: error => expect(error instanceof Error).toBe(true)
+        });
+    });
+});
+
 describe("Gather Use Case", () => {
 
 	// Mock fetch function to simulate network request with 200ms delay and 30% failure rate
@@ -549,12 +579,12 @@ describe("Flow Function", () => {
 	test("flow() with a successful Promise resolves to Ok", async () => {
         const res = await flow(
 			5,
-			(x) => x.map(double),
-			async (x) => gather(() => isOk(x)
-				? Promise.resolve(x.value + 10)
+			double,
+			async x => gather(() => x
+				? Promise.resolve(x + 10)
 				: Promise.reject("Error in first stage")
 			),
-			(x) => x.map(half)
+			half
 		);
         expect(isOk(res)).toBe(true); // Flow resolves to Ok
         expect(res.get()).toBe(10); // (5 * 2 + 10) / 2 = 10
@@ -563,9 +593,9 @@ describe("Flow Function", () => {
     test("flow() with a Promise rejecting in the middle rejects with Err", async () => {
         const res = await flow(
             5,
-            (x) => x.map(double),
-			async (_) => gather(() => Promise.reject("Error in second stage")),
-			(x) => x.map(half)
+            double,
+			async _ => gather(() => Promise.reject("Error in second stage")),
+			half
         ) as Result<number, Error>;
         expect(isErr(res)).toBe(true); // Flow rejects with Err
 		expect(() => res.get()).toThrow("Error in second stage"); // Ensure the error is properly thrown

@@ -1,12 +1,12 @@
 {
   "name": "@efflore/flow-sure",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "description": "FlowSure - a Result monad in TypeScript. Data types Ok, Nil, Err with ensure(), attempt() async gather() and flow() functions.",
   "main": "index.js",
   "types": "index.d.ts",
   "scripts": {
-	"build": "bun build index.ts --outdir ./ --minify && bunx tsc",
-	"test": "echo \"Error: no test specified\" && exit 1"
+    "build": "bun build index.ts --outdir ./ --minify && bunx tsc",
+    "test": "bun test"
   },
   "module": "index.ts",
   "type": "module",
@@ -19,6 +19,6 @@
     "@types/bun": "latest"
   },
   "peerDependencies": {
-    "typescript": "^5.0.0"
+    "typescript": "^5.6.3"
   }
 }

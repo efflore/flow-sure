@@ -1,3 +1,9 @@
+/**
+ * @name FlowSure
+ * @version 0.9.5
+ * @author Esther Brunner
+ */
+
 /* === Types === */
 
 type Ok<T> = {
@@ -9,7 +15,7 @@ type Ok<T> = {
     guard: <U extends T>(fn: (value: T) => value is U) => Maybe<U>
     or: (_: any) => Ok<T>
 	catch: (_: any) => Ok<T>
-	match: <U, F extends Error>(cases: Cases<T, Error, U, F>) => Result<U, F>
+	match: (cases: Cases<T, Error>) => any
     get: () => T
 }
 
@@ -21,7 +27,7 @@ type Nil = {
     guard: (_: any) => Nil
     or: <T>(fn: () => T) => Maybe<T>
 	catch: (_: any) => Nil
-	match: <U, F extends Error>(cases: Cases<any, Error, U, F>) => Result<U, F>
+	match: (cases: Cases<any, Error>) => any
     get: () => undefined
 }
 
@@ -33,8 +39,8 @@ type Err<E extends Error> = {
     filter: (_: any) => Nil
     guard: (_: any) => Nil
     or: <T>(fn: () => T) => Maybe<T>
-	catch: <U, F extends Error>(fn: (error: E) => Result<U, F>) => Result<U, F>
-	match: <U, F extends Error>(cases: Cases<any, E, U, F>) => Result<U, F>
+	catch: <T, F extends Error>(fn: (error: E) => Result<T, F>) => Result<T, F>
+	match: (cases: Cases<any, E>) => any
     get: () => never
 }
 
@@ -42,13 +48,16 @@ type Maybe<T> = Ok<T> | Nil
 
 type Result<T, E extends Error> = Ok<T> | Nil | Err<E>
 
-type AsyncResult<T, E extends Error> = 
-    T | Result<T, E> | Promise<T | Result<T, E>> | PromiseLike<T | Result<T, E>>
+type MaybeResult<T, E extends Error> =
+	T | Result<T, E> | undefined
 
-type Cases<T, E extends Error, U, F extends Error> = {
-    [TYPE_OK]?: (value: T) => Result<U, F>
-    [TYPE_NIL]?: () => Result<U, F>
-    [TYPE_ERR]?: (error: E) => Result<U, F>
+type AsyncResult<T, E extends Error> = 
+    MaybeResult<T, E> | Promise<MaybeResult<T, E>> | PromiseLike<MaybeResult<T, E>>
+
+type Cases<T, E extends Error> = {
+    [TYPE_OK]?: (value: T) => any
+    [TYPE_NIL]?: () => any
+    [TYPE_ERR]?: (error: E) => any
 }
 
 /* === Constants === */
@@ -86,7 +95,7 @@ const isMaybe = <T>(value: unknown): value is Maybe<T> =>
 const isResult = <T, E extends Error>(value: unknown): value is Result<T, E> =>
 	isOk(value) || isNil(value) || isErr(value)
 
-const errOrEnsure = <T, E extends Error>(value: T | Result<T, Error>): Result<T, E> =>
+const errOrEnsure = <T, E extends Error>(value: MaybeResult<T, Error>): Result<T, E> =>
 	isErr(value) ? value as Err<E> : ensure(value)
 
 const wrapErr = <E extends Error>(error: unknown): Err<E> =>
@@ -110,10 +119,8 @@ const Ok = <T>(value: T): Ok<T> => ({
 	guard: <U extends T>(fn: (value: T) => value is U) => fn(value) ? Ok<U>(value) : Nil(),
 	or: () => Ok(value),
 	catch: () => Ok(value),
-	match: <U, F extends Error>(cases: Cases<T, Error, U, F>) =>
-		isFunction(cases[TYPE_OK])
-			? cases[TYPE_OK](value)
-			: Ok(value) as unknown as Result<U, F>,
+	match: (cases: Cases<T, Error>) =>
+		isFunction(cases[TYPE_OK]) ? cases[TYPE_OK](value) : Ok(value),
 	get: () => value,
 })
 
@@ -131,10 +138,8 @@ const Nil = (): Nil => ({
 	guard: Nil,
 	or: <T>(fn: () => T) => ensure(fn()),
 	catch: Nil,
-	match: <U, F extends Error>(cases: Cases<undefined, Error, U, F>) =>
-		isFunction(cases[TYPE_NIL])
-			? cases[TYPE_NIL]()
-			: Nil(),
+	match: (cases: Cases<undefined, Error>) =>
+		isFunction(cases[TYPE_NIL]) ? cases[TYPE_NIL]() : Nil(),
 	get: () => undefined,
 })
 
@@ -153,11 +158,9 @@ const Err = <E extends Error>(error: E): Err<E> => ({
 	filter: Nil,
 	guard: Nil,
 	or: <T>(fn: () => T) => ensure(fn()),
-	catch: <U, F extends Error>(fn: (error: E) => Result<U, F>) => fn(error),
-	match: <U, F extends Error>(cases: Cases<undefined, E, U, F>) =>
-		isFunction(cases[TYPE_ERR])
-			? cases[TYPE_ERR](error)
-			: wrapErr<F>(error),
+	catch: <T, F extends Error>(fn: (error: E) => Result<T, F>) => fn(error),
+	match: (cases: Cases<undefined, E>) =>
+		isFunction(cases[TYPE_ERR]) ? cases[TYPE_ERR](error) : wrapErr(error),
 	get: () => { throw error }, // re-throw error for the caller to handle
 })
 
@@ -201,39 +204,39 @@ const gather = async <T, E extends Error>(
     retries: number = 0,
     delay: number = 1000
 ): Promise<Result<T, E>> => {
-    const attemptTask = async (retries: number, delay: number): Promise<Result<T, E>> => {
+    const task = async (retries: number, delay: number): Promise<Result<T, E>> => {
         return Promise.resolve(fn())
             .then((result) => errOrEnsure<T, E>(result))
             .catch(async (error) => {
                 if (retries < 1) return wrapErr<E>(error)
-                await new Promise(res => setTimeout(res, delay)) // wait for the delay
-                return attemptTask(retries - 1, delay * 2) // retry with exponential backoff
+                await new Promise(resolve => setTimeout(resolve, delay)) // wait for the delay
+                return task(retries - 1, delay * 2) // retry with exponential backoff
             })
     }
-    return await attemptTask(retries, delay)
+    return await task(retries, delay)
 }
 
 /**
  * Helper function to execute a series of functions in sequence
  * 
  * @since 0.9.0
- * @param {[T | (() => AsyncResult<T, E>), ...((input: Result<T, E>) => AsyncResult<T, E>)[]]} fns - array of functions to execute in sequence
+ * @param {[T | (() => AsyncResult<T, E>), ...((input: T) => AsyncResult<T, E>)[]]} fns - array of functions to execute in sequence
  * @returns {Promise<Result<any, any>>} - promise that resolves to the result of the last function or fails with the first error encountered
  */
 async function flow<T, E extends Error>(
-	...fns: [T | (() => AsyncResult<T, E>), ...((input: Result<T, E>) => AsyncResult<T, E>)[]]
+	...fns: [T | (() => AsyncResult<T, E>), ...((input: T) => AsyncResult<T, E>)[]]
 ): Promise<Result<any, any>> {
     let result: any = isFunction(fns[0]) ? Nil() : ensure(fns.shift())
     for (const fn of fns) {
 		if (isErr(result)) break
 		if (!isFunction(fn)) return Err(new TypeError('Expected a function in flow'))
-		result = await gather(() => fn(result))
+		result = await gather(() => fn(result.get()))
     }
     return result
 }
 
 export {
-	type Maybe, type Result, type AsyncResult, type Cases,
+	type Maybe, type Result, type MaybeResult, type AsyncResult, type Cases,
 	isDefined, isDefinedObject, isObjectOfType, isFunction,
 	isOk, isNil, isErr, isMaybe, isResult,
 	Ok, Nil, Err, ensure, attempt, gather, flow
