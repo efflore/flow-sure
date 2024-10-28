@@ -40,16 +40,16 @@ result.match({
 
 #### Monadic Methods Table
 
-| Method      | `Ok<T>`       | `Nil`              | `Err<E extends Error>` | Function Type                        |
-|-------------|---------------|--------------------|------------------------|--------------------------------------|
-| `.map()`    | **Yes**       | No-op              | No-op                  | `(value: T) => U`                    |
-| `.chain()`  | **Yes**       | No-op              | No-op                  | `(value: T) => Result<U, Error>`     |
-| `.filter()`  | **Yes**       | No-op              | Converts to `Nil`      | `(value: T) => boolean`              |
-| `.guard()`  | **Yes**       | No-op              | Converts to `Nil`      | `(value: T) => value is U`           |
-| `.or()`     | No-op         | **Yes**            | **Yes**                | `() => T`                            |
-| `.catch()`  | No-op         | No-op              | **Yes**                | `(error: E) => Result<T, Error>`     |
-| `.match()`  | **Yes**       | **Yes**            | **Yes**                | `(value: T) => any`                  |
-| `.get()`    | Returns value | Returns `undefined` | Throws error           | `T`, `undefined` or `E extends Error` |
+| Method      | `Ok<T>`       | `Nil`              | `Err<E extends Error>` | Function Type                                           |
+|-------------|---------------|--------------------|------------------------|---------------------------------------------------------|
+| `.map()`    | **Yes**       | No-op              | No-op                  | `(value: T) => U`                                       |
+| `.chain()`  | **Yes**       | No-op              | No-op                  | `(value: T) => Result<U, Error>`                        |
+| `.filter()`  | **Yes**       | No-op              | Converts to `Nil`      | `(value: T) => boolean`                                 |
+| `.guard()`  | **Yes**       | No-op              | Converts to `Nil`      | `(value: T) => value is U`                              |
+| `.or()`     | No-op         | **Yes**            | **Yes**                | `() => T`                                               |
+| `.catch()`  | No-op         | No-op              | **Yes**                | `(error: E) => Result<T, Error>`                        |
+| `.match()`  | **Yes**       | **Yes**            | **Yes**                | `(value: T) => any`, `() => any` or `(error: E) => any` |
+| `.get()`    | Returns value | Returns `undefined` | Throws error           | `T`, `undefined` or `E`                                  |
 
 #### Explanation of Each Method
 
