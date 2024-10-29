@@ -6,20 +6,18 @@
 
 /* === Types === */
 
-type Ok<T> = {
+interface Ok<T> {
     readonly [Symbol.toStringTag]: 'Ok'
-    value: T
-    map: <U>(fn: (value: T) => U) => Ok<U>
+    map: <U extends {}>(fn: (value: T) => U) => Ok<U>
     chain: <U, E extends Error>(fn: (value: T) => Result<U, E>) => Result<U, E>
     filter: (fn: (value: T) => boolean) => Maybe<T>
     guard: <U extends T>(fn: (value: T) => value is U) => Maybe<U>
     or: (_: any) => Ok<T>
 	catch: (_: any) => Ok<T>
 	match: (cases: Cases<T, Error>) => any
-    get: () => T
 }
 
-type Nil = {
+interface Nil {
     readonly [Symbol.toStringTag]: 'Nil'
     map: (_: any) => Nil
     chain: (_: any) => Nil
@@ -27,21 +25,18 @@ type Nil = {
     guard: (_: any) => Nil
     or: <T>(fn: () => T) => Maybe<T>
 	catch: (_: any) => Nil
-	match: (cases: Cases<any, Error>) => any
-    get: () => undefined
+	match: (cases: Cases<undefined, Error>) => any
 }
 
-type Err<E extends Error> = {
+interface Err<E extends Error> {
     readonly [Symbol.toStringTag]: 'Err'
-    error: E
     map: (_: any) => Err<E>
 	chain: (_: any) => Err<E>
     filter: (_: any) => Nil
     guard: (_: any) => Nil
     or: <T>(fn: () => T) => Maybe<T>
 	catch: <T, F extends Error>(fn: (error: E) => Result<T, F>) => Result<T, F>
-	match: (cases: Cases<any, E>) => any
-    get: () => never
+	match: (cases: Cases<undefined, E>) => any
 }
 
 type Maybe<T> = Ok<T> | Nil
@@ -55,16 +50,11 @@ type AsyncResult<T, E extends Error> =
     MaybeResult<T, E> | Promise<MaybeResult<T, E>> | PromiseLike<MaybeResult<T, E>>
 
 type Cases<T, E extends Error> = {
-    [TYPE_OK]?: (value: T) => any
-    [TYPE_NIL]?: () => any
-    [TYPE_ERR]?: (error: E) => any
+    Ok?: (value: T) => any
+    Nil?: () => any
+    Err?: (error: E) => any
+	// default?: (value: T) => any
 }
-
-/* === Constants === */
-
-const TYPE_OK = 'Ok'
-const TYPE_NIL = 'Nil'
-const TYPE_ERR = 'Err'
 
 /* === Utility Functions === */
 
@@ -74,20 +64,14 @@ const isFunction = (value: unknown): value is Function =>
 const isDefined = (value: unknown): value is NonNullable<typeof value> =>
     value != null
 
-const isDefinedObject = (value: unknown): value is Record<PropertyKey, unknown> =>
-	typeof value === 'object' && isDefined(value)
-
-const isObjectOfType = <T>(value: unknown, type: string): value is T =>
-	isDefinedObject(value) && (value[Symbol.toStringTag] === type)
-
 const isOk = <T>(value: unknown): value is Ok<T> =>
-	isObjectOfType(value, TYPE_OK)
+	value instanceof Ok
 
 const isNil = (value: unknown): value is Nil =>
-	isObjectOfType(value, TYPE_NIL)
+	value instanceof Nil
 
 const isErr = <E extends Error>(value: unknown): value is Err<E> =>
-	isObjectOfType(value, TYPE_ERR)
+	value instanceof Err
 
 const isMaybe = <T>(value: unknown): value is Maybe<T> =>
 	isOk(value) || isNil(value)
@@ -95,74 +79,23 @@ const isMaybe = <T>(value: unknown): value is Maybe<T> =>
 const isResult = <T, E extends Error>(value: unknown): value is Result<T, E> =>
 	isOk(value) || isNil(value) || isErr(value)
 
-const errOrEnsure = <T, E extends Error>(value: MaybeResult<T, Error>): Result<T, E> =>
-	isErr(value) ? value as Err<E> : ensure(value)
+const getResult = <T, E extends Error>(value: MaybeResult<T, E>): Result<T, E> =>
+	isErr(value) ? value : ensure(value)
 
-const wrapErr = <E extends Error>(error: unknown): Err<E> =>
-	Err(error instanceof Error ? error as E : new Error(String(error)) as E)
+const noOp = function<T>(this: T) { return this }
 
 /* === Exported Functions === */
 
-/**
- * Create an "Ok" value, representing a value
- * 
- * @since 0.9.0
- * @param {T} value - value to wrap in an "Ok" value
- * @returns {Ok<T, E>} - "Ok" value with the given value
- */
-const Ok = <T>(value: T): Ok<T> => ({
-	[Symbol.toStringTag]: TYPE_OK,
-	value,
-	map: <U>(fn: (value: T) => U) => Ok(fn(value)),
-	chain: <U, E extends Error>(fn: (value: T) => Result<U, E>) => fn(value),
-	filter: (fn: (value: T) => boolean) => fn(value) ? Ok<T>(value) : Nil(),
-	guard: <U extends T>(fn: (value: T) => value is U) => fn(value) ? Ok<U>(value) : Nil(),
-	or: () => Ok(value),
-	catch: () => Ok(value),
-	match: (cases: Cases<T, Error>) =>
-		isFunction(cases[TYPE_OK]) ? cases[TYPE_OK](value) : Ok(value),
-	get: () => value,
-})
-
-/**
- * Create a "Nil" value, representing a lack of a value
- * 
- * @since 0.9.0
- * @returns {Nil} - "Nil" value
- */
-const Nil = (): Nil => ({
-	[Symbol.toStringTag]: TYPE_NIL,
-	map: Nil,
-	chain: Nil,
-	filter: Nil,
-	guard: Nil,
-	or: <T>(fn: () => T) => ensure(fn()),
-	catch: Nil,
-	match: (cases: Cases<undefined, Error>) =>
-		isFunction(cases[TYPE_NIL]) ? cases[TYPE_NIL]() : Nil(),
-	get: () => undefined,
-})
-
-/**
- * Create a "Err" value, representing a failure
- * 
- * @since 0.9.0
- * @param {E} error - error to wrap in a "Err" value
- * @returns {Err<E>} - "Err" value with the given error
- */
-const Err = <E extends Error>(error: E): Err<E> => ({
-	[Symbol.toStringTag]: TYPE_ERR,
-	error,
-	map: () => Err<E>(error),
-	chain: () => Err<E>(error),
-	filter: Nil,
-	guard: Nil,
-	or: <T>(fn: () => T) => ensure(fn()),
-	catch: <T, F extends Error>(fn: (error: E) => Result<T, F>) => fn(error),
-	match: (cases: Cases<undefined, E>) =>
-		isFunction(cases[TYPE_ERR]) ? cases[TYPE_ERR](error) : wrapErr(error),
-	get: () => { throw error }, // re-throw error for the caller to handle
-})
+/* const match = function<T>(
+	value: T,
+	cases: Cases<T>
+) {
+    for (const [predicate, handler] of Object.entries(cases)) {
+        if (isFunction(predicate) && predicate(value)) return handler(value)
+    }
+    if (cases.default) return cases.default(value)
+    else return getResult(value)
+} */
 
 /**
  * Create an option for a given value to gracefully handle nullable values
@@ -172,7 +105,7 @@ const Err = <E extends Error>(error: E): Err<E> => ({
  * @returns {Maybe<T>} - option of either Ok or Nil, depending on whether the input is nullish
  */
 const ensure = <T>(value: T | Maybe<T> | null | undefined): Maybe<T> =>
-	!isDefined(value) ? Nil() : isMaybe(value) ? value : Ok(value)
+	!isDefined(value) ? Nil.of() : isMaybe(value) ? value : Ok.of(value)
 
 /**
  * Try executing the given function and returning a "Ok" value if it succeeds, or a "Err" value if it fails
@@ -183,10 +116,9 @@ const ensure = <T>(value: T | Maybe<T> | null | undefined): Maybe<T> =>
  */
 const attempt = <T, E extends Error>(fn: () => T | Result<T, E>): Result<T, E> => {
 	try {
-		const result = fn()
-		return errOrEnsure(result)
+		return getResult(fn())
     } catch (error) {
-        return wrapErr<E>(error)
+        return Err.of(error) as Err<E>
     }
 }
 
@@ -206,9 +138,9 @@ const gather = async <T, E extends Error>(
 ): Promise<Result<T, E>> => {
     const task = async (retries: number, delay: number): Promise<Result<T, E>> => {
         return Promise.resolve(fn())
-            .then((result) => errOrEnsure<T, E>(result))
+            .then(getResult)
             .catch(async (error) => {
-                if (retries < 1) return wrapErr<E>(error)
+                if (retries < 1) return Err.of(error) as Err<E>
                 await new Promise(resolve => setTimeout(resolve, delay)) // wait for the delay
                 return task(retries - 1, delay * 2) // retry with exponential backoff
             })
@@ -225,19 +157,129 @@ const gather = async <T, E extends Error>(
  */
 async function flow<T, E extends Error>(
 	...fns: [T | (() => AsyncResult<T, E>), ...((input: T) => AsyncResult<T, E>)[]]
-): Promise<Result<any, any>> {
-    let result: any = isFunction(fns[0]) ? Nil() : ensure(fns.shift())
+): Promise<Result<any, E>> {
+    let result: any = isFunction(fns[0]) ? Nil.of() : ensure(fns.shift())
     for (const fn of fns) {
 		if (isErr(result)) break
-		if (!isFunction(fn)) return Err(new TypeError('Expected a function in flow'))
+		if (!isFunction(fn))
+			return Err.of(new TypeError('Expected a function in flow')) as Err<E>
 		result = await gather(() => fn(result.get()))
     }
     return result
 }
 
+/* === Exported Classes === */
+
+/**
+ * Create an "Ok" value, representing a value
+ * 
+ * @since 0.9.0
+ * @param {T} value - value to wrap in an "Ok" value
+ * @returns {Ok<T, E>} - "Ok" value with the given value
+ */
+class Ok<T> {
+	static of = (value: NonNullable<any>) => new Ok(value)
+	constructor(public readonly value: NonNullable<T>) {}
+	get() { return this.value }
+}
+
+const okProto = Ok.prototype
+
+okProto.map = function <T, U extends {}>(
+	this: Ok<T>,
+	fn: (value: T) => U
+): Ok<U> {
+	return Ok.of(fn(this.value))
+}
+
+okProto.chain = function <T, U, E extends Error>(
+	this: Ok<T>,
+	fn: (value: T
+) => Result<U, E>): Result<U, E> {
+    return fn(this.value)
+}
+
+okProto.filter = okProto.guard = function <T>(
+    this: Ok<T>,
+    fn: (value: T) => boolean
+): Maybe<T> {
+	return fn(this.value) ? this : Nil.of()
+}
+
+okProto.or = okProto.catch = noOp
+
+okProto.match = function <T>(
+    this: Ok<T>,
+    cases: Cases<T, Error>
+): any {
+	return isFunction(cases.Ok) ? cases.Ok(this.value) : this
+}
+
+/**
+ * Create a "Nil" value, representing a lack of a value
+ * 
+ * @since 0.9.0
+ * @returns {Nil} - "Nil" value
+ */
+class Nil {
+	static of = () => new Nil()
+	get() { return undefined }
+}
+
+const nilProto = Nil.prototype
+
+nilProto.map = nilProto.chain = nilProto.filter = nilProto.guard = nilProto.catch = noOp
+
+nilProto.match = function (
+	this: Nil,
+	cases: Cases<undefined, Error>
+): any {
+	return isFunction(cases.Nil) ? cases.Nil() : this
+}
+
+/**
+ * Create a "Err" value, representing a failure
+ * 
+ * @since 0.9.0
+ * @param {E} error - error to wrap in a "Err" value
+ * @returns {Err<E>} - "Err" value with the given error
+ */
+class Err<E extends Error> {
+	static of = (error: any) =>
+		new Err(error instanceof Error ? error : new Error(String(error)))
+    constructor(public readonly error: E) {}
+	get() { throw this.error }
+}
+
+const errProto = Err.prototype
+
+errProto.map = errProto.chain = noOp
+
+errProto.filter = errProto.guard = function() {
+	return Nil.of()
+}
+
+nilProto.or = errProto.or = function <T>(fn: () => T): Maybe<T> {
+	return ensure(fn())
+}
+
+errProto.catch = function <T, E extends Error, F extends Error>(
+	this: Err<E>,
+	fn: (error: E) => Result<T, F>
+): Result<T, F> {
+	console.debug(this)
+    return fn(this.error)
+}
+
+errProto.match = function <E extends Error>(
+    this: Err<E>,
+    cases: Cases<undefined, E>
+): any {
+	return isFunction(cases.Err) ? cases.Err(this.error) : this
+}
+
 export {
 	type Maybe, type Result, type MaybeResult, type AsyncResult, type Cases,
-	isDefined, isDefinedObject, isObjectOfType, isFunction,
-	isOk, isNil, isErr, isMaybe, isResult,
+	isDefined, isFunction, isOk, isNil, isErr, isMaybe, isResult,
 	Ok, Nil, Err, ensure, attempt, gather, flow
 }

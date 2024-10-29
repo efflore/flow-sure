@@ -10,20 +10,20 @@ type TreeStructure = { roots: Set<TreeNode>, orphans: Set<TreeNode>}
 
 const identity = <T>(x: T): T => x;
 const addOne = (x: number) => x + 1;
-const addOneOk = (x: number) => Ok(x + 1);
+const addOneOk = (x: number) => Ok.of(x + 1);
 const double = (x: number) => x * 2;
-const doubleOk = (x: number) => Ok(x * 2);
+const doubleOk = (x: number) => Ok.of(x * 2);
 const half = (x: number) => x / 2;
 const isPositive = (x: number) => x > 0;
 const isEven = (x: number) => x % 2 === 0;
 const isString = (x: unknown): x is string => typeof x === 'string';
 const isPositiveNumber = (x: unknown): x is number => typeof x === 'number' && x > 0;
-const recoverWithOk = () => Ok("recovered");
-const recoverWithNil = () => Nil();
-const recoverWithErr = () => Err(new Error("Recovery failed"));
-const handleOk = (value: number) => Ok(value + 1);
-const handleNil = () => Ok("Recovered from Nil");
-const handleErr = (error: Error) => Ok(`Recovered from error: ${error.message}`);
+const recoverWithOk = () => Ok.of("recovered");
+const recoverWithNil = () => Nil.of();
+const recoverWithErr = () => Err.of("Recovery failed");
+const handleOk = (value: number) => Ok.of(value + 1);
+const handleNil = () => Ok.of("Recovered from Nil");
+const handleErr = (error: Error) => Ok.of(`Recovered from error: ${error.message}`);
 const successfulTask = () => Promise.resolve(10);
 const nullTask = () => Promise.resolve(null);
 const failingTask = () => Promise.reject(new Error("Task failed"));
@@ -33,22 +33,22 @@ const failingTask = () => Promise.reject(new Error("Task failed"));
 describe("Ok Use Case", () => {
 
     test("isOk should return true for Ok instances", () => {
-        const ok = Ok(10);
+        const ok = Ok.of(10);
         expect(isOk(ok)).toBe(true);
     });
 
     test("isOk should return false for Nil instances", () => {
-        const nil = Nil();
+        const nil = Nil.of();
         expect(isOk(nil)).toBe(false);
     });
 
     test("isOk should return false for Err instances", () => {
-        const err = Err(new Error("Error"));
+        const err = Err.of("Error");
         expect(isOk(err)).toBe(false);
     });
 
     test("map and filter should apply functions to the value of Ok instances", () => {
-        const result = Ok(5).map(x => x * 2).filter(x => x > 5);
+        const result = Ok.of(5).map(x => x * 2).filter(x => x > 5);
         expect(isOk(result)).toBe(true);
         expect(result.get()).toBe(10);
         result.match({
@@ -92,7 +92,7 @@ describe("Gather Use Case", () => {
 	// Step 1: Fetch data
 	const fetchData = async () => {
 		const response = await mockFetch('/api/data')
-		if (!response.ok) return Err(new Error(`Failed to fetch data: ${response.statusText}`))
+		if (!response.ok) return Err.of(`Failed to fetch data: ${response.statusText}`)
 		return await response.json()
 	}
 
@@ -134,7 +134,7 @@ describe("Gather Use Case", () => {
 			.filter(validateData)
 			.map((x: { value: any[] }) => buildTreeStructure(x.value))
 			.match({
-				Nil: () => Err(new Error("Data is invalid, missing 'value', or 'value' is not an array"))
+				Nil: () => Err.of("Data is invalid, missing 'value', or 'value' is not an array")
 			})
 	}
 
@@ -157,15 +157,15 @@ describe("Monad Laws for Ok", () => {
     test("Left Identity: Ok(x).chain(f) === f(x)", () => {
         const x = 5;
         const f = addOneOk;
-        const res1 = Ok(x).chain(f);
+        const res1 = Ok.of(x).chain(f);
         const res2 = f(x);
         expect(res1.get()).toBe(res2.get());
     });
 
     test("Right Identity: Ok(x).chain(Ok) === Ok(x)", () => {
         const x = 5;
-        const res1 = Ok(x).chain(Ok);
-        const res2 = Ok(x);
+        const res1 = Ok.of(x).chain(y => Ok.of(y));
+        const res2 = Ok.of(x);
         expect(res1.get()).toBe(res2.get());
     });
 
@@ -173,8 +173,8 @@ describe("Monad Laws for Ok", () => {
         const x = 5;
         const f = addOneOk;
         const g = doubleOk;
-        const res1 = Ok(x).chain(f).chain(g);
-        const res2 = Ok(x).chain(x => f(x).chain(g));
+        const res1 = Ok.of(x).chain(f).chain(g);
+        const res2 = Ok.of(x).chain(x => f(x).chain(g));
         expect(res1.get()).toBe(res2.get());
     });
 });
@@ -182,20 +182,20 @@ describe("Monad Laws for Ok", () => {
 // Test Monad Laws for Err
 describe("Monad Laws for Err", () => {
     test("Left Identity: Err.chain(f) === Err", () => {
-        const err = Err(new Error("Error"));
+        const err = Err.of("Error");
         const f = addOneOk;
         const res = err.chain(f);
         expect(res.error).toBe(err.error);
     });
 
     test("Right Identity: Err.chain(Ok) === Err", () => {
-        const err = Err(new Error("Error"));
+        const err = Err.of("Error");
         const res = err.chain(Ok);
         expect(res.error).toBe(err.error);
     });
 
     test("Associativity: (Err.chain(f)).chain(g) === Err.chain(x => f(x).chain(g))", () => {
-        const err = Err(new Error("Error"));
+        const err = Err.of("Error");
         const f = addOneOk;
         const g = doubleOk;
         const res1 = err.chain(f).chain(g);
@@ -209,22 +209,22 @@ describe("Monad Laws for Err", () => {
 describe("Monad Laws for Nil", () => {
     test("Left Identity: Nil.chain(f) === Nil", () => {
         const f = addOneOk;
-        const res = Nil().chain(f);
-        expect(res.get()).toBe(Nil().get());
+        const res = Nil.of().chain(f);
+        expect(res.get()).toBe(Nil.of().get());
     });
 
     test("Right Identity: Nil.chain(Ok) === Nil", () => {
-        const res = Nil().chain(Ok);
-        expect(res.get()).toBe(Nil().get());
+        const res = Nil.of().chain(Ok);
+        expect(res.get()).toBe(Nil.of().get());
     });
 
     test("Associativity: (Nil.chain(f)).chain(g) === Nil.chain(x => f(x).chain(g))", () => {
         const f = addOneOk;
         const g = doubleOk;
-        const res1 = Nil().chain(f).chain(g);
-        const res2 = Nil().chain(x => f(x).chain(g));
-        expect(res1.get()).toBe(Nil().get());
-        expect(res2.get()).toBe(Nil().get());
+        const res1 = Nil.of().chain(f).chain(g);
+        const res2 = Nil.of().chain(x => f(x).chain(g));
+        expect(res1.get()).toBe(Nil.of().get());
+        expect(res2.get()).toBe(Nil.of().get());
     });
 });
 
@@ -232,15 +232,15 @@ describe("Monad Laws for Nil", () => {
 describe("Functor Laws for Ok", () => {
     test("Identity: Ok(x).map(x => x) === Ok(x)", () => {
         const x = 5;
-        const res1 = Ok(x).map(identity);
-        const res2 = Ok(x);
+        const res1 = Ok.of(x).map(identity);
+        const res2 = Ok.of(x);
         expect(res1.get()).toBe(res2.get());
     });
 
     test("Composition: Ok(x).map(x => f(g(x))) === Ok(x).map(g).map(f)", () => {
         const x = 5;
-        const res1 = Ok(x).map(x => addOne(double(x))); // map with composition
-        const res2 = Ok(x).map(double).map(addOne); // map separately
+        const res1 = Ok.of(x).map(x => addOne(double(x))); // map with composition
+        const res2 = Ok.of(x).map(double).map(addOne); // map separately
         expect(res1.get()).toBe(res2.get());
     });
 });
@@ -248,13 +248,13 @@ describe("Functor Laws for Ok", () => {
 // Test Functor Laws for Err
 describe("Functor Laws for Err", () => {
     test("Identity: Err.map(x => x) === Err", () => {
-        const err = Err(new Error("Error"));
+        const err = Err.of("Error");
         const res = err.map(identity);
         expect(res.error).toBe(err.error);
     });
 
     test("Composition: Err.map(x => f(g(x))) === Err.map(g).map(f)", () => {
-        const err = Err(new Error("Error"));
+        const err = Err.of("Error");
         const res1 = err.map(x => addOne(double(x))); // map with composition
         const res2 = err.map(double).map(addOne); // map separately
         expect(res1.error).toBe(err.error); // No transformation happens on Err
@@ -265,37 +265,37 @@ describe("Functor Laws for Err", () => {
 // Test Functor Laws for Nil
 describe("Functor Laws for Nil", () => {
     test("Identity: Nil.map(x => x) === Nil", () => {
-        const res = Nil().map(identity);
-        expect(res.get()).toBe(Nil().get());
+        const res = Nil.of().map(identity);
+        expect(res.get()).toBe(Nil.of().get());
     });
 
     test("Composition: Nil.map(x => f(g(x))) === Nil.map(g).map(f)", () => {
-        const res1 = Nil().map(x => addOne(double(x))); // map with composition
-        const res2 = Nil().map(double).map(addOne); // map separately
-        expect(res1.get()).toBe(Nil().get()); // No transformation happens on Nil
-        expect(res2.get()).toBe(Nil().get()); // No transformation happens on Nil
+        const res1 = Nil.of().map(x => addOne(double(x))); // map with composition
+        const res2 = Nil.of().map(double).map(addOne); // map separately
+        expect(res1.get()).toBe(Nil.of().get()); // No transformation happens on Nil
+        expect(res2.get()).toBe(Nil.of().get()); // No transformation happens on Nil
     });
 });
 
 // Ok Monad
 describe("Filterable Trait for Ok", () => {
     test("Filter Ok value, predicate true", () => {
-        const res = Ok(5).filter(isPositive);
+        const res = Ok.of(5).filter(isPositive);
         expect(res.get()).toBe(5);
     });
 
     test("Filter Ok value, predicate false", () => {
-        const res = Ok(-5).filter(isPositive);
+        const res = Ok.of(-5).filter(isPositive);
         expect(isNil(res)).toBe(true); // Ok(-5) should be filtered out, resulting in Nil
     });
 
     test("Filter Ok value with even predicate, true case", () => {
-        const res = Ok(4).filter(isEven);
+        const res = Ok.of(4).filter(isEven);
         expect(res.get()).toBe(4); // 4 is even, so Ok(4) remains
     });
 
     test("Filter Ok value with even predicate, false case", () => {
-        const res = Ok(5).filter(isEven);
+        const res = Ok.of(5).filter(isEven);
         expect(isNil(res)).toBe(true); // 5 is not even, so Nil
     });
 });
@@ -303,7 +303,7 @@ describe("Filterable Trait for Ok", () => {
 // Nil Monad
 describe("Filterable Trait for Nil", () => {
     test("Filter Nil, always returns Nil", () => {
-        const res = Nil().filter(isPositive);
+        const res = Nil.of().filter(isPositive);
         expect(isNil(res)).toBe(true); // Nil remains Nil regardless of predicate
     });
 });
@@ -311,7 +311,7 @@ describe("Filterable Trait for Nil", () => {
 // Err Monad
 describe("Filterable Trait for Err", () => {
     test("Filter Err, always returns Nil", () => {
-        const err = Err(new Error("Something went wrong"));
+        const err = Err.of("Something went wrong");
         const res = err.filter(isPositive);
         expect(isNil(res)).toBe(true); // Err should always result in Nil when filtered
     });
@@ -320,23 +320,23 @@ describe("Filterable Trait for Err", () => {
 // Ok Monad
 describe("Guard Trait for Ok", () => {
     test("Guard Ok value, type guard passes", () => {
-        const res = Ok("hello").guard(isString);
+        const res = Ok.of("hello").guard(isString);
         expect(res.get()).toBe("hello"); // The value is a string, so Ok("hello") remains
     });
 
     test("Guard Ok value, type guard fails", () => {
-		// @ts-expect-error
-        const res = Ok(5).guard(isString); 
+		// @ts -expect-error
+        const res = Ok.of(5).guard(isString); 
         expect(isNil(res)).toBe(true); // 5 is not a string, so Nil
     });
 
     test("Guard Ok value with positive number check, passes", () => {
-        const res = Ok(10).guard(isPositiveNumber);
+        const res = Ok.of(10).guard(isPositiveNumber);
         expect(res.get()).toBe(10); // 10 is a positive number, so Ok(10) remains
     });
 
     test("Guard Ok value with positive number check, fails", () => {
-        const res = Ok(-5).guard(isPositiveNumber);
+        const res = Ok.of(-5).guard(isPositiveNumber);
         expect(isNil(res)).toBe(true); // -5 is not a positive number, so Nil
     });
 });
@@ -344,7 +344,7 @@ describe("Guard Trait for Ok", () => {
 // Nil Monad
 describe("Guard Trait for Nil", () => {
     test("Guard Nil, always returns Nil", () => {
-        const res = Nil().guard(isString);
+        const res = Nil.of().guard(isString);
         expect(isNil(res)).toBe(true); // Nil remains Nil regardless of guard
     });
 });
@@ -352,7 +352,7 @@ describe("Guard Trait for Nil", () => {
 // Err Monad
 describe("Guard Trait for Err", () => {
     test("Guard Err, always returns Nil", () => {
-        const err = Err(new Error("Something went wrong"));
+        const err = Err.of("Something went wrong");
         const res = err.guard(isString);
         expect(isNil(res)).toBe(true); // Err should always result in Nil when guarded
     });
@@ -361,12 +361,12 @@ describe("Guard Trait for Err", () => {
 // Ok Monad
 describe("Or Trait for Ok", () => {
     test("Ok.or() has no effect, keeps original value", () => {
-        const res = Ok(5).or(() => 10);
+        const res = Ok.of(5).or(() => 10);
         expect(res.get()).toBe(5); // Ok(5) remains unchanged, or() has no effect
     });
 
     test("Ok.or() with nullish fallback, keeps original value", () => {
-        const res = Ok(5).or(() => null);
+        const res = Ok.of(5).or(() => null);
         expect(res.get()).toBe(5); // Ok(5) remains unchanged, or() has no effect
     });
 });
@@ -374,12 +374,12 @@ describe("Or Trait for Ok", () => {
 // Nil Monad
 describe("Or Trait for Nil", () => {
     test("Nil.or() provides fallback value as Ok", () => {
-        const res = Nil().or(() => 10);
+        const res = Nil.of().or(() => 10);
         expect(res.get()).toBe(10); // Nil becomes Ok(10) with the fallback value
     });
 
     test("Nil.or() with nullish fallback, remains Nil", () => {
-        const res = Nil().or(() => null);
+        const res = Nil.of().or(() => null);
         expect(isNil(res)).toBe(true); // Nil remains Nil as fallback is nullish
     });
 });
@@ -387,13 +387,13 @@ describe("Or Trait for Nil", () => {
 // Err Monad
 describe("Or Trait for Err", () => {
     test("Err.or() provides fallback value as Ok", () => {
-        const err = Err(new Error("Something went wrong"));
+        const err = Err.of("Something went wrong");
         const res = err.or(() => 10);
         expect(res.get()).toBe(10); // Err becomes Ok(10) with the fallback value
     });
 
     test("Err.or() with nullish fallback, becomes Nil", () => {
-        const err = Err(new Error("Something went wrong"));
+        const err = Err.of("Something went wrong");
         const res = err.or(() => null);
         expect(isNil(res)).toBe(true); // Err becomes Nil as fallback is nullish
     });
@@ -402,7 +402,7 @@ describe("Or Trait for Err", () => {
 // Ok Monad
 describe("Catch Trait for Ok", () => {
     test("Ok.catch() has no effect, remains Ok", () => {
-        const res = Ok(5).catch(recoverWithOk);
+        const res = Ok.of(5).catch(recoverWithOk);
         expect(res.get()).toBe(5); // Ok(5) remains unchanged, catch() has no effect
     });
 });
@@ -410,7 +410,7 @@ describe("Catch Trait for Ok", () => {
 // Nil Monad
 describe("Catch Trait for Nil", () => {
     test("Nil.catch() has no effect, remains Nil", () => {
-        const res = Nil().catch(recoverWithOk);
+        const res = Nil.of().catch(recoverWithOk);
         expect(isNil(res)).toBe(true); // Nil remains Nil, catch() has no effect
     });
 });
@@ -418,36 +418,36 @@ describe("Catch Trait for Nil", () => {
 // Err Monad
 describe("Catch Trait for Err", () => {
     test("Err.catch() recovers with Ok", () => {
-        const err = Err(new Error("Something went wrong"));
+        const err = Err.of("Something went wrong");
         const res = err.catch(recoverWithOk);
         expect(isOk(res)).toBe(true); // Err becomes Ok after recovery
         expect(res.get()).toBe("recovered");
     });
 
     test("Err.catch() recovers with Nil", () => {
-        const err = Err(new Error("Something went wrong"));
+        const err = Err.of("Something went wrong");
         const res = err.catch(recoverWithNil);
         expect(isNil(res)).toBe(true); // Err becomes Nil after recovery
     });
 
     test("Err.catch() fails with another Err", () => {
-        const err = Err(new Error("Something went wrong"));
+        const err = Err.of("Something went wrong");
         const res = err.catch(recoverWithErr);
         expect(isErr(res)).toBe(true); // Err remains Err after failed recovery
-        expect(res.get).toThrow("Recovery failed"); // The error message should now reflect the recovery error
+        expect(() => res.get()).toThrow("Recovery failed"); // The error message should now reflect the recovery error
     });
 });
 
 // Ok Monad
 describe("Match Trait for Ok", () => {
     test("Match with Ok handler", () => {
-        const res = Ok(5).match({ Ok: handleOk });
+        const res = Ok.of(5).match({ Ok: handleOk });
         expect(isOk(res)).toBe(true); // Ok handler should be applied
         expect(res.get()).toBe(6); // 5 + 1 = 6
     });
 
     test("Match without Ok handler, passes through", () => {
-        const res = Ok(5).match({});
+        const res = Ok.of(5).match({});
         expect(isOk(res)).toBe(true); // Ok remains unchanged
         expect(res.get()).toBe(5);
     });
@@ -456,13 +456,13 @@ describe("Match Trait for Ok", () => {
 // Nil Monad
 describe("Match Trait for Nil", () => {
     test("Match with Nil handler", () => {
-        const res = Nil().match({ Nil: handleNil });
+        const res = Nil.of().match({ Nil: handleNil });
         expect(isOk(res)).toBe(true); // Nil handler should be applied, resulting in Ok
         expect(res.get()).toBe("Recovered from Nil");
     });
 
     test("Match without Nil handler, passes through", () => {
-        const res = Nil().match({});
+        const res = Nil.of().match({});
         expect(isNil(res)).toBe(true); // Nil remains unchanged
     });
 });
@@ -470,17 +470,17 @@ describe("Match Trait for Nil", () => {
 // Err Monad
 describe("Match Trait for Err", () => {
     test("Match with Err handler", () => {
-        const err = Err(new Error("Something went wrong"));
+        const err = Err.of("Something went wrong");
         const res = err.match({ Err: handleErr });
         expect(isOk(res)).toBe(true); // Err handler should be applied, recovering to Ok
         expect(res.get()).toBe("Recovered from error: Something went wrong");
     });
 
     test("Match without Err handler, passes through", () => {
-        const err = Err(new Error("Something went wrong"));
+        const err = Err.of("Something went wrong");
         const res = err.match({});
         expect(isErr(res)).toBe(true); // Err remains unchanged
-        expect(res.get).toThrow("Something went wrong"); // Error is passed through
+        expect(() => res.get()).toThrow("Something went wrong"); // Error is passed through
     });
 });
 
@@ -488,7 +488,7 @@ describe("Match Trait for Err", () => {
 // Ok Monad
 describe("Get Trait for Ok", () => {
     test("Ok.get() returns the contained value", () => {
-        const res = Ok(5);
+        const res = Ok.of(5);
         expect(res.get()).toBe(5); // Ok(5) should return 5
     });
 });
@@ -496,7 +496,7 @@ describe("Get Trait for Ok", () => {
 // Nil Monad
 describe("Get Trait for Nil", () => {
     test("Nil.get() returns undefined", () => {
-        const res = Nil();
+        const res = Nil.of();
         expect(res.get()).toBe(undefined); // Nil should return undefined
     });
 });
@@ -504,7 +504,7 @@ describe("Get Trait for Nil", () => {
 // Err Monad
 describe("Get Trait for Err", () => {
     test("Err.get() rethrows the contained error", () => {
-        const err = Err(new Error("Something went wrong"));
+        const err = Err.of("Something went wrong");
         expect(() => err.get()).toThrow("Something went wrong"); // Err should rethrow the contained error
     });
 });
@@ -594,7 +594,7 @@ describe("Flow Function", () => {
         const res = await flow(
             5,
             double,
-			async _ => gather(() => Promise.reject("Error in second stage")),
+			async _ => gather(() => Promise.reject(new Error("Error in second stage"))),
 			half
         ) as Result<number, Error>;
         expect(isErr(res)).toBe(true); // Flow rejects with Err
