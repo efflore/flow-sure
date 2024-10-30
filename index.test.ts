@@ -325,7 +325,7 @@ describe("Guard Trait for Ok", () => {
     });
 
     test("Guard Ok value, type guard fails", () => {
-		// @ts -expect-error
+		// @ts-expect-error
         const res = Ok.of(5).guard(isString); 
         expect(Nil.isNil(res)).toBe(true); // 5 is not a string, so Nil
     });
@@ -595,7 +595,7 @@ describe("Flow Function", () => {
             double,
 			async _ => Promise.reject(new Error("Error in second stage")),
 			half
-        ) as Result<number>;
+        );
         expect(Err.isErr(res)).toBe(true); // Flow rejects with Err
 		expect(() => res.get()).toThrow("Error in second stage"); // Ensure the error is properly thrown
 	});
