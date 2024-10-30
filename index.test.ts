@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { Ok, Nil, Err, isOk, isNil, isErr, ensure, attempt, gather, flow, Result } from "./index";
+import { Ok, Nil, Err, Maybe, Result, flow } from "./index";
 
 /* === Types === */
 
@@ -34,22 +34,22 @@ describe("Ok Use Case", () => {
 
     test("isOk should return true for Ok instances", () => {
         const ok = Ok.of(10);
-        expect(isOk(ok)).toBe(true);
+        expect(Ok.isOk(ok)).toBe(true);
     });
 
     test("isOk should return false for Nil instances", () => {
         const nil = Nil.of();
-        expect(isOk(nil)).toBe(false);
+        expect(Ok.isOk(nil)).toBe(false);
     });
 
     test("isOk should return false for Err instances", () => {
         const err = Err.of("Error");
-        expect(isOk(err)).toBe(false);
+        expect(Ok.isOk(err)).toBe(false);
     });
 
     test("map and filter should apply functions to the value of Ok instances", () => {
         const result = Ok.of(5).map(x => x * 2).filter(x => x > 5);
-        expect(isOk(result)).toBe(true);
+        expect(Ok.isOk(result)).toBe(true);
         expect(result.get()).toBe(10);
         result.match({
             Ok: value => expect(typeof value).toBe('number'),
@@ -64,7 +64,7 @@ describe("Gather Use Case", () => {
 
 	// Mock fetch function to simulate network request with 200ms delay and 30% failure rate
 	const mockFetch = (url: string): Promise<Response> => new Promise((resolve, reject) => {
-		const response: Response = attempt(() => Response.json({
+		const response: Response = Result.from(() => Response.json({
 			value: [
 				{ id: 0, parentId: null, name: "Root" },
 				{ id: 1, parentId: 0, name: "Level 1, Item 1" },
@@ -127,7 +127,7 @@ describe("Gather Use Case", () => {
 	const fetchTreeData = async () => {
 
 		// 3 attempts, exponential backoff with initial 1000ms delay
-		const data = await gather(fetchData, 3, 1000)
+		const data = await Result.fromAsync(fetchData, 3, 1000)
 
 		// Validate the data and build the tree structure
 		return data
@@ -140,7 +140,7 @@ describe("Gather Use Case", () => {
 
 	test("returns the correct result", async () => {
 		const result = await fetchTreeData()
-		if (isErr(result)) expect(result.error.message).toBeString()
+		if (Err.isErr(result)) expect(result.error.message).toBeString()
 		else {
 			const obj = result.get() as TreeStructure
             expect(obj.roots).toBeInstanceOf(Set)
@@ -286,7 +286,7 @@ describe("Filterable Trait for Ok", () => {
 
     test("Filter Ok value, predicate false", () => {
         const res = Ok.of(-5).filter(isPositive);
-        expect(isNil(res)).toBe(true); // Ok(-5) should be filtered out, resulting in Nil
+        expect(Nil.isNil(res)).toBe(true); // Ok(-5) should be filtered out, resulting in Nil
     });
 
     test("Filter Ok value with even predicate, true case", () => {
@@ -296,7 +296,7 @@ describe("Filterable Trait for Ok", () => {
 
     test("Filter Ok value with even predicate, false case", () => {
         const res = Ok.of(5).filter(isEven);
-        expect(isNil(res)).toBe(true); // 5 is not even, so Nil
+        expect(Nil.isNil(res)).toBe(true); // 5 is not even, so Nil
     });
 });
 
@@ -304,7 +304,7 @@ describe("Filterable Trait for Ok", () => {
 describe("Filterable Trait for Nil", () => {
     test("Filter Nil, always returns Nil", () => {
         const res = Nil.of().filter(isPositive);
-        expect(isNil(res)).toBe(true); // Nil remains Nil regardless of predicate
+        expect(Nil.isNil(res)).toBe(true); // Nil remains Nil regardless of predicate
     });
 });
 
@@ -313,7 +313,7 @@ describe("Filterable Trait for Err", () => {
     test("Filter Err, always returns Nil", () => {
         const err = Err.of("Something went wrong");
         const res = err.filter(isPositive);
-        expect(isNil(res)).toBe(true); // Err should always result in Nil when filtered
+        expect(Nil.isNil(res)).toBe(true); // Err should always result in Nil when filtered
     });
 });
 
@@ -327,7 +327,7 @@ describe("Guard Trait for Ok", () => {
     test("Guard Ok value, type guard fails", () => {
 		// @ts -expect-error
         const res = Ok.of(5).guard(isString); 
-        expect(isNil(res)).toBe(true); // 5 is not a string, so Nil
+        expect(Nil.isNil(res)).toBe(true); // 5 is not a string, so Nil
     });
 
     test("Guard Ok value with positive number check, passes", () => {
@@ -337,7 +337,7 @@ describe("Guard Trait for Ok", () => {
 
     test("Guard Ok value with positive number check, fails", () => {
         const res = Ok.of(-5).guard(isPositiveNumber);
-        expect(isNil(res)).toBe(true); // -5 is not a positive number, so Nil
+        expect(Nil.isNil(res)).toBe(true); // -5 is not a positive number, so Nil
     });
 });
 
@@ -345,7 +345,7 @@ describe("Guard Trait for Ok", () => {
 describe("Guard Trait for Nil", () => {
     test("Guard Nil, always returns Nil", () => {
         const res = Nil.of().guard(isString);
-        expect(isNil(res)).toBe(true); // Nil remains Nil regardless of guard
+        expect(Nil.isNil(res)).toBe(true); // Nil remains Nil regardless of guard
     });
 });
 
@@ -354,7 +354,7 @@ describe("Guard Trait for Err", () => {
     test("Guard Err, always returns Nil", () => {
         const err = Err.of("Something went wrong");
         const res = err.guard(isString);
-        expect(isNil(res)).toBe(true); // Err should always result in Nil when guarded
+        expect(Nil.isNil(res)).toBe(true); // Err should always result in Nil when guarded
     });
 });
 
@@ -380,7 +380,7 @@ describe("Or Trait for Nil", () => {
 
     test("Nil.or() with nullish fallback, remains Nil", () => {
         const res = Nil.of().or(() => null);
-        expect(isNil(res)).toBe(true); // Nil remains Nil as fallback is nullish
+        expect(Nil.isNil(res)).toBe(true); // Nil remains Nil as fallback is nullish
     });
 });
 
@@ -395,7 +395,7 @@ describe("Or Trait for Err", () => {
     test("Err.or() with nullish fallback, becomes Nil", () => {
         const err = Err.of("Something went wrong");
         const res = err.or(() => null);
-        expect(isNil(res)).toBe(true); // Err becomes Nil as fallback is nullish
+        expect(Nil.isNil(res)).toBe(true); // Err becomes Nil as fallback is nullish
     });
 });
 
@@ -411,7 +411,7 @@ describe("Catch Trait for Ok", () => {
 describe("Catch Trait for Nil", () => {
     test("Nil.catch() has no effect, remains Nil", () => {
         const res = Nil.of().catch(recoverWithOk);
-        expect(isNil(res)).toBe(true); // Nil remains Nil, catch() has no effect
+        expect(Nil.isNil(res)).toBe(true); // Nil remains Nil, catch() has no effect
     });
 });
 
@@ -420,20 +420,20 @@ describe("Catch Trait for Err", () => {
     test("Err.catch() recovers with Ok", () => {
         const err = Err.of("Something went wrong");
         const res = err.catch(recoverWithOk);
-        expect(isOk(res)).toBe(true); // Err becomes Ok after recovery
+        expect(Ok.isOk(res)).toBe(true); // Err becomes Ok after recovery
         expect(res.get()).toBe("recovered");
     });
 
     test("Err.catch() recovers with Nil", () => {
         const err = Err.of("Something went wrong");
         const res = err.catch(recoverWithNil);
-        expect(isNil(res)).toBe(true); // Err becomes Nil after recovery
+        expect(Nil.isNil(res)).toBe(true); // Err becomes Nil after recovery
     });
 
     test("Err.catch() fails with another Err", () => {
         const err = Err.of("Something went wrong");
         const res = err.catch(recoverWithErr);
-        expect(isErr(res)).toBe(true); // Err remains Err after failed recovery
+        expect(Err.isErr(res)).toBe(true); // Err remains Err after failed recovery
         expect(() => res.get()).toThrow("Recovery failed"); // The error message should now reflect the recovery error
     });
 });
@@ -442,13 +442,13 @@ describe("Catch Trait for Err", () => {
 describe("Match Trait for Ok", () => {
     test("Match with Ok handler", () => {
         const res = Ok.of(5).match({ Ok: handleOk });
-        expect(isOk(res)).toBe(true); // Ok handler should be applied
+        expect(Ok.isOk(res)).toBe(true); // Ok handler should be applied
         expect(res.get()).toBe(6); // 5 + 1 = 6
     });
 
     test("Match without Ok handler, passes through", () => {
         const res = Ok.of(5).match({});
-        expect(isOk(res)).toBe(true); // Ok remains unchanged
+        expect(Ok.isOk(res)).toBe(true); // Ok remains unchanged
         expect(res.get()).toBe(5);
     });
 });
@@ -457,13 +457,13 @@ describe("Match Trait for Ok", () => {
 describe("Match Trait for Nil", () => {
     test("Match with Nil handler", () => {
         const res = Nil.of().match({ Nil: handleNil });
-        expect(isOk(res)).toBe(true); // Nil handler should be applied, resulting in Ok
+        expect(Ok.isOk(res)).toBe(true); // Nil handler should be applied, resulting in Ok
         expect(res.get()).toBe("Recovered from Nil");
     });
 
     test("Match without Nil handler, passes through", () => {
         const res = Nil.of().match({});
-        expect(isNil(res)).toBe(true); // Nil remains unchanged
+        expect(Nil.isNil(res)).toBe(true); // Nil remains unchanged
     });
 });
 
@@ -472,14 +472,14 @@ describe("Match Trait for Err", () => {
     test("Match with Err handler", () => {
         const err = Err.of("Something went wrong");
         const res = err.match({ Err: handleErr });
-        expect(isOk(res)).toBe(true); // Err handler should be applied, recovering to Ok
+        expect(Ok.isOk(res)).toBe(true); // Err handler should be applied, recovering to Ok
         expect(res.get()).toBe("Recovered from error: Something went wrong");
     });
 
     test("Match without Err handler, passes through", () => {
         const err = Err.of("Something went wrong");
         const res = err.match({});
-        expect(isErr(res)).toBe(true); // Err remains unchanged
+        expect(Err.isErr(res)).toBe(true); // Err remains unchanged
         expect(() => res.get()).toThrow("Something went wrong"); // Error is passed through
     });
 });
@@ -509,66 +509,66 @@ describe("Get Trait for Err", () => {
     });
 });
 
-// Tests for ensure()
+// Tests for Maybe.of()
 
-describe("Ensure Function", () => {
-    test("ensure() with non-nullish value returns Ok", () => {
-        const res = ensure(5);
-        expect(isOk(res)).toBe(true); // ensure(5) should return Ok(5)
+describe("Maybe.of Function", () => {
+    test("Maybe.of() with non-nullish value returns Ok", () => {
+        const res = Maybe.of(5);
+        expect(Ok.isOk(res)).toBe(true); // Maybe.of(5) should return Ok(5)
         expect(res.get()).toBe(5);
     });
 
-    test("ensure() with null value returns Nil", () => {
-        const res = ensure(null);
-        expect(isNil(res)).toBe(true); // ensure(null) should return Nil
+    test("Maybe.of() with null value returns Nil", () => {
+        const res = Maybe.of(null);
+        expect(Nil.isNil(res)).toBe(true); // Maybe.of(null) should return Nil
     });
 
-    test("ensure() with undefined value returns Nil", () => {
-        const res = ensure(undefined);
-        expect(isNil(res)).toBe(true); // ensure(undefined) should return Nil
+    test("Maybe.of() with undefined value returns Nil", () => {
+        const res = Maybe.of(undefined);
+        expect(Nil.isNil(res)).toBe(true); // Maybe.of(undefined) should return Nil
     });
 });
 
-// Tests for attempt()
+// Tests for Result.from()
 
-describe("Attempt Function", () => {
-    test("attempt() with successful function returns Ok", () => {
-        const res = attempt(() => 10);
-        expect(isOk(res)).toBe(true); // result of function should return Ok(10)
+describe("Result.from Function", () => {
+    test("Result.from() with successful function returns Ok", () => {
+        const res = Result.from(() => 10);
+        expect(Ok.isOk(res)).toBe(true); // result of function should return Ok(10)
         expect(res.get()).toBe(10);
     });
 
-    test("attempt() with function returning null returns Nil", () => {
-        const res = attempt(() => null);
-        expect(isNil(res)).toBe(true); // result of function returning null should return Nil
+    test("Result.from() with function returning null returns Nil", () => {
+        const res = Result.from(() => null);
+        expect(Nil.isNil(res)).toBe(true); // result of function returning null should return Nil
     });
 
-    test("attempt() with function throwing error returns Err", () => {
-        const res = attempt(() => {
+    test("Result.from() with function throwing error returns Err", () => {
+        const res = Result.from(() => {
             throw new Error("Something went wrong");
         });
-        expect(isErr(res)).toBe(true); // result of function throwing error should return Err
+        expect(Err.isErr(res)).toBe(true); // result of function throwing error should return Err
         expect(() => res.get()).toThrow("Something went wrong"); // Ensure the error is properly thrown
     });
 });
 
-// Tests for gather()
+// Tests for Result.fromAsync()
 
-describe("Gather Function", () => {
-    test("gather() with a successful Promise resolves to Ok", async () => {
-        const res = await gather(successfulTask);
-        expect(isOk(res)).toBe(true); // Task resolves to Ok
+describe("Result.fromAsync Function", () => {
+    test("Result.fromAsync() with a successful Promise resolves to Ok", async () => {
+        const res = await Result.fromAsync(successfulTask);
+        expect(Ok.isOk(res)).toBe(true); // Task resolves to Ok
         expect(res.get()).toBe(10);
     });
 
-    test("gather() with a Promise resolving to null resolves to Nil", async () => {
-        const res = await gather(nullTask);
-        expect(isNil(res)).toBe(true); // Task resolves to Nil
+    test("Result.fromAsync() with a Promise resolving to null resolves to Nil", async () => {
+        const res = await Result.fromAsync(nullTask);
+        expect(Nil.isNil(res)).toBe(true); // Task resolves to Nil
     });
 
-    test("gather() with a failing Promise rejects with Err", async () => {
-        const res = await gather(failingTask);
-        expect(isErr(res)).toBe(true); // Task rejects with Err
+    test("Result.fromAsync() with a failing Promise rejects with Err", async () => {
+        const res = await Result.fromAsync(failingTask);
+        expect(Err.isErr(res)).toBe(true); // Task rejects with Err
         expect(() => res.get()).toThrow("Task failed"); // Ensure the error is properly thrown
     });
 });
@@ -580,13 +580,12 @@ describe("Flow Function", () => {
         const res = await flow(
 			5,
 			double,
-			async x => gather(() => x
+			async x => x
 				? Promise.resolve(x + 10)
-				: Promise.reject("Error in first stage")
-			),
+				: Promise.reject("Error in first stage"),
 			half
 		);
-        expect(isOk(res)).toBe(true); // Flow resolves to Ok
+        expect(Ok.isOk(res)).toBe(true); // Flow resolves to Ok
         expect(res.get()).toBe(10); // (5 * 2 + 10) / 2 = 10
     });
 
@@ -594,10 +593,10 @@ describe("Flow Function", () => {
         const res = await flow(
             5,
             double,
-			async _ => gather(() => Promise.reject(new Error("Error in second stage"))),
+			async _ => Promise.reject(new Error("Error in second stage")),
 			half
-        ) as Result<number, Error>;
-        expect(isErr(res)).toBe(true); // Flow rejects with Err
+        ) as Result<number>;
+        expect(Err.isErr(res)).toBe(true); // Flow rejects with Err
 		expect(() => res.get()).toThrow("Error in second stage"); // Ensure the error is properly thrown
 	});
 });

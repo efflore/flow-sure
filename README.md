@@ -1,6 +1,6 @@
 # FlowSure
 
-Version 0.9.5
+Version 0.9.6
 
 **FlowSure** is a lightweight, functional library designed to handle asynchronous operations and error-prone logic in JavaScript and TypeScript with ease. Inspired by functional programming, it provides `Result` monads (`Ok`, `Err`, `Nil`) to elegantly manage both synchronous and asynchronous workflows, converting complex error handling into expressive, chainable flows.
 
@@ -62,15 +62,15 @@ result.match({
 * `.match()`: Allows pattern matching across `Ok`, `Nil`, and `Err`.
 * `.get()`: Retrieves the contained value, returning `undefined` for `Nil` and throwing for `Err`.
 
-### Handling Optional or Missing Values with ensure()
+### Handling Optional or Missing Values with Maybe.of()
 
-Use `ensure()` to wrap values that might be missing (`undefined` or `null`) and convert them into `Ok` or `Nil`. This is particularly useful for safely working with values that may or may not be present.
+Use `Maybe.of()` to wrap values that might be missing (`undefined` or `null`) and convert them into `Ok` or `Nil`. This is particularly useful for safely working with values that may or may not be present.
 
 ```js
-import { ensure } from "@efflore/flow-sure";
+import { Maybe } from "@efflore/flow-sure";
 
 const optionalValue = undefined; // Could also be null or an actual value
-const result = ensure(optionalValue)
+Maybe.of(optionalValue)
     .map(value => value * 2)
     .filter(value => value > 5)
     .match({
@@ -79,14 +79,14 @@ const result = ensure(optionalValue)
     });
 ```
 
-### Handling Exceptions with attempt()
+### Handling Exceptions with Result.from()
 
-`attempt()` is used to safely execute functions that may throw exceptions. It captures exceptions and converts them into `Err` values, allowing you to handle errors gracefully within the chain.
+`Result.from()` is used to safely execute functions that may throw exceptions. It captures exceptions and converts them into `Err` values, allowing you to handle errors gracefully within the chain.
 
 ```js
-import { attempt } from "@efflore/flow-sure";
+import { Result } from "@efflore/flow-sure";
 
-const result = attempt(() => {
+const result = Result.from(() => {
     // Function that may throw an error
     return JSON.parse("invalid json");
 }).match({
@@ -95,9 +95,9 @@ const result = attempt(() => {
 });
 ```
 
-### Handling Promises with gather()
+### Handling Promises with Result.fromAsync()
 
-Use `gather()` to retrieve and handle a promised result, wrapping it in `Result` types (`Ok`, `Err`, `Nil`). You can also add retry logic for async operations:
+Use `Result.fromAsync()` to retrieve and handle a promised result, wrapping it in `Result` types (`Ok`, `Err`, `Nil`). You can also add retry logic for async operations:
 
 ```js
 import { gather, Err } from "@efflore/flow-sure";
