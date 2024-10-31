@@ -1,7 +1,7 @@
 
 import { type Cases, isFunction, noOp } from "./util"
 import { Ok } from "./ok"
-import { type Maybe, of as maybe } from "./maybe"
+import { type Maybe, of } from "./maybe"
 
 /* === Types === */
 
@@ -27,7 +27,6 @@ export interface Nil {
  */
 export class Nil {
 	private static instance = new Nil()
-	private constructor() {}
 
 	/**
 	 * Get the singleton "Nil" instance
@@ -53,18 +52,14 @@ export class Nil {
 	 * @since 0.9.0
 	 * @returns {undefined}
 	 */
-	get() {
-		return undefined
-	}
+	get = (): undefined => undefined
 }
 
 const nilProto = Nil.prototype
 
 nilProto.map = nilProto.chain = nilProto.filter = nilProto.guard = nilProto.catch = noOp
 
-nilProto.or = function <T>(fn: () => T): Maybe<T> {
-	return maybe(fn())
-}
+nilProto.or = <T>(fn: () => T): Maybe<T> => of(fn())
 
 nilProto.match = function (
 	this: Nil,

@@ -1,4 +1,3 @@
-import { isDefined } from "./util"
 import { Ok } from "./ok"
 import { Nil } from "./nil"
 
@@ -15,11 +14,9 @@ export type Maybe<T> = Ok<T> | Nil
  * @param {T} value - a value
  */
 export const of = <T>(value: T): Maybe<T> =>
-	!isDefined(value)
-		? Nil.of()
-		: isMaybe(value)
-			? value as Maybe<T>
-			: Ok.of(value)
+	value == null ? Nil.of()
+		: isMaybe(value) ? value as Maybe<T>
+		: Ok.of(value)
 
 /**
  * Check if a value is a Maybe type
@@ -30,15 +27,3 @@ export const of = <T>(value: T): Maybe<T> =>
  */
 export const isMaybe = (value: unknown): value is Maybe<unknown> =>
 	Ok.isOk(value) || Nil.isNil(value)
-
-/**
- * Unwrap a Maybe value or return the provided default value
- * 
- * @since 0.9.6
- * @param {Maybe<T> | T | undefined} value - a Maybe value or a value
- * @returns {T | undefined} - the value or undefined
- */
-export const unwrap = <T>(value: Maybe<T> | T | undefined): T | undefined =>
-	isMaybe(value)
-		? value.get()
-		: value

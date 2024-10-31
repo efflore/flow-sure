@@ -1,8 +1,8 @@
 
-import { type Cases, isFunction, isInstanceOf, noOp } from "./util"
+import { type Cases, isError, isFunction, isInstanceOf, noOp } from "./util"
 import type { Ok } from "./ok"
 import { Nil } from "./nil"
-import { type Maybe, of as maybe } from "./maybe"
+import { type Maybe, of } from "./maybe"
 import type { Result } from "./result"
 
 /* === Types === */
@@ -38,8 +38,8 @@ export class Err<E extends Error> {
 	 * @param {unknown} error - the error to create an "Err" value from
 	 * @returns {Err<Error>} - the new "Err" value
 	 */
-	static of = (error: any): Err<Error> =>
-		new Err(error instanceof Error ? error : new Error(String(error)))
+	static of = (error: unknown): Err<Error> =>
+		new Err(isError(error) ? error : new Error(String(error)))
 
 	/**
 	 * Check if this is an "Err" value
@@ -65,19 +65,14 @@ const errProto = Err.prototype
 
 errProto.map = errProto.chain = noOp
 
-errProto.filter = errProto.guard = function() {
-	return Nil.of()
-}
+errProto.filter = errProto.guard = () => Nil.of()
 
-errProto.or = function <T>(fn: () => T): Maybe<T> {
-	return maybe(fn())
-}
+errProto.or = <T>(fn: () => T): Maybe<T> => of(fn())
 
-errProto.catch = function <T, E extends Error, F extends Error>(
+errProto.catch = function <T, E extends Error>(
 	this: Err<E>,
 	fn: (error: E) => Result<T>
 ): Result<T> {
-	console.debug(this)
     return fn(this.error)
 }
 

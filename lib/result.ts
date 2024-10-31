@@ -1,8 +1,7 @@
-import { isDefined, isInstanceOf } from "./util"
+import { isError } from "./util"
 import { Ok } from "./ok"
 import { Nil } from "./nil"
 import { Err } from "./err"
-import { unwrap as unwrapMaybe } from "./maybe"
 
 /* === Types === */
 
@@ -20,13 +19,10 @@ export type AsyncResult<T> = Promise<MaybeResult<T>>
  * @returns {Result<T>} - an Ok<T>, Nil or Err<Error> containing the value
  */
 export const of = <T>(value: MaybeResult<T>): Result<T> =>
-	!isDefined(value)
-		? Nil.of()
-		: isResult(value)
-			? value
-			: isInstanceOf(Error)(value)
-				? Err.of(value)
-				: Ok.of(value)
+	value == null ? Nil.of()
+		: isResult(value) ? value
+		: isError(value) ? Err.of(value)
+		: Ok.of(value)
 
 /**
  * Create a Result from a function that may throw an error
@@ -86,6 +82,6 @@ export const isResult = (value: unknown): value is Result<unknown> =>
 export const unwrap = <T>(
 	value: Result<T> | T | undefined
 ): T | Error | undefined =>
-	Err.isErr(value)
-		? value.error
-		: unwrapMaybe(value)
+	Err.isErr(value) ? value.error
+		: Ok.isOk(value) || Nil.isNil(value) ? value.get()
+		: value

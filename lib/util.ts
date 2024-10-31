@@ -22,6 +22,9 @@ const isInstanceOf = <T>(type: new (...args: any[]) => T) =>
 	(value: unknown): value is T =>
 		value instanceof type
 
+const isError = (value: unknown): value is Error =>
+	isInstanceOf(Error)(value)
+
 const noOp = function<T>(this: T) { return this }
 
 /* const match = function<T>(
@@ -35,4 +38,4 @@ const noOp = function<T>(this: T) { return this }
     else return getResult(value)
 } */
 
-export { type Cases, isFunction, isAsyncFunction, isDefined, isInstanceOf, noOp }
+export { type Cases, isFunction, isAsyncFunction, isDefined, isInstanceOf, isError, noOp }

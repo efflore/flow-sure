@@ -19,7 +19,6 @@ export interface Nil {
  */
 export declare class Nil {
     private static instance;
-    private constructor();
     /**
      * Get the singleton "Nil" instance
      *
@@ -41,6 +40,6 @@ export declare class Nil {
      * @since 0.9.0
      * @returns {undefined}
      */
-    get(): undefined;
+    get: () => undefined;
 }
 export default Nil;

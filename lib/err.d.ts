@@ -30,7 +30,7 @@ export declare class Err<E extends Error> {
      * @param {unknown} error - the error to create an "Err" value from
      * @returns {Err<Error>} - the new "Err" value
      */
-    static of: (error: any) => Err<Error>;
+    static of: (error: unknown) => Err<Error>;
     /**
      * Check if this is an "Err" value
      *
