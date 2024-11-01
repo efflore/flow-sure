@@ -12,7 +12,7 @@ type Cases<T, E extends Error> = {
 const isFunction = (value: unknown): value is (...args: any[]) => any =>
     typeof value === 'function'
 
-const isAsyncFunction  = (value: unknown): value is (...args: any[]) => Promise<any> | PromiseLike<any> =>
+const isAsyncFunction = (value: unknown): value is (...args: any[]) => Promise<any> | PromiseLike<any> =>
 	isFunction(value) && /^async\s+/.test(value.toString())
 
 const isDefined = (value: unknown): value is NonNullable<typeof value> =>

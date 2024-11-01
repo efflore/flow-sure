@@ -1,4 +1,4 @@
-import { isError } from "./util"
+import { isError, isFunction } from "./util"
 import { Ok } from "./ok"
 import { Nil } from "./nil"
 import { Err } from "./err"
@@ -6,8 +6,7 @@ import { Err } from "./err"
 /* === Types === */
 
 export type Result<T> = Ok<T> | Nil | Err<Error>
-export type MaybeResult<T> = T | Result<T> | undefined
-export type AsyncResult<T> = Promise<MaybeResult<T>>
+export type MaybeResult<T> = T | Error | Result<T> | undefined
 
 /* === Namespace Result === */
 
@@ -31,9 +30,12 @@ export const of = <T>(value: MaybeResult<T>): Result<T> =>
  * @param {() => MaybeResult<T>} fn - a function that may throw an error
  * @returns {Result<T>} - an Ok<T>, Nil or Err<Error> containing the result of the function
  */
-export const from = <T>(fn: () => MaybeResult<T>): Result<T> => {
+export const from = <T>(
+	fn: (...args: any[]) => MaybeResult<T>,
+	...args: any[]
+): Result<T> => {
 	try {
-		return of(fn())
+		return of(fn(...args))
 	} catch (error) {
 		return Err.of(error)
 	}
@@ -43,22 +45,17 @@ export const from = <T>(fn: () => MaybeResult<T>): Result<T> => {
  * Create an async task to gather a resouce; retries the given function with exponential backoff if it fails
  * 
  * @since 0.9.6
- * @param {() => AsyncResult<T>} fn - async function to try and maybe retry
- * @param {number} [retries=0] - number of times to retry the function if it fails; default is 0 (no retries)
- * @param {number} [delay=1000] - initial delay in milliseconds between retries; default is 1000ms
+ * @param {() => Promise<MaybeResult<T>>} fn - async function to try and maybe retry
  * @returns {Promise<Result<T>>} - promise that resolves to the result of the function or fails with the last error encountered
  */
 export const fromAsync = async <T>(
-	fn: () => Promise<T>,
-	retries: number = 0,
-	delay: number = 1000
+	fn: (...args: any[]) => Promise<MaybeResult<T>>,
+	...args: any[]
 ): Promise<Result<T>> => {
 	try {
-		return of(await fn())
+		return of(await fn(...args))
 	} catch (error) {
-		if (retries < 1) return Err.of(error)
-		await new Promise((res) => setTimeout(res, delay))
-		return fromAsync(fn, retries - 1, delay * 2)
+		return Err.of(error)
 	}
 }
 
@@ -71,6 +68,31 @@ export const fromAsync = async <T>(
  */
 export const isResult = (value: unknown): value is Result<unknown> =>
 	Ok.isOk(value) || Nil.isNil(value) || Err.isErr(value)
+
+/**
+ * Helper function to execute a series of functions in sequence
+ * 
+ * @since 0.9.0
+ * @param {[T | (() => AsyncResult<T>), ...((input: T) => AsyncResult<T>)[]]} fns - array of functions to execute in sequence
+ * @returns {Promise<Result<any, any>>} - promise that resolves to the result of the last function or fails with the first error encountered
+ */
+export const flow = async <T>(
+	...fns: [
+		T | (() => MaybeResult<T> | Promise<MaybeResult<T>>),
+		...((input: T) => MaybeResult<T> | Promise<MaybeResult<T>>)[]
+	]
+): Promise<Result<any>> => {
+    let result: any = isFunction(fns[0]) ? Nil.of() : of(fns.shift())
+    for (const fn of fns) {
+		if (Err.isErr(result)) break
+		if (!isFunction(fn))
+			return Err.of(new TypeError('Expected a function in flow'))
+		result = /^async\s+/.test(fn.toString())
+			? await fromAsync(async () => fn(result.get()))
+			: from(fn, result.get())
+    }
+    return result
+}
 
 /**
  * Unwrap a Result container, returning the value if it is Ok, or the error if it is Err

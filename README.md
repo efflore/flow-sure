@@ -1,6 +1,6 @@
 # FlowSure
 
-Version 0.9.6
+Version 0.9.7
 
 **FlowSure** is a lightweight, functional library designed to handle asynchronous operations and error-prone logic in JavaScript and TypeScript with ease. Inspired by functional programming, it provides `Result` monads (`Ok`, `Err`, `Nil`) to elegantly manage both synchronous and asynchronous workflows, converting complex error handling into expressive, chainable flows.
 
@@ -8,8 +8,7 @@ Version 0.9.6
 
 * **Compositional Error Handling**: Capture, handle, and propagate errors without cluttering your code.
 * **Monadic Chains for Flow Control**: Seamlessly compose sync and async functions with `Ok`, `Err`, and `Nil` monads.
-* **Functional Flow Composition**: Construct robust, declarative flows with `flow()`, using Result types to maintain clean, predictable control paths.
-* **Optional Async Retry Logic**: Use `gather()` to handle promises and add retry logic with exponential backoff if needed.
+* **Functional Flow Composition**: Construct robust, declarative flows with `Result.flow()`, using Result types to maintain clean, predictable control paths.
 
 ## Installation
 
@@ -97,30 +96,40 @@ const result = Result.from(() => {
 
 ### Handling Promises with Result.fromAsync()
 
-Use `Result.fromAsync()` to retrieve and handle a promised result, wrapping it in `Result` types (`Ok`, `Err`, `Nil`). You can also add retry logic for async operations:
+Use `Result.fromAsync()` to retrieve and handle a promised result, wrapping it in `Result` types (`Ok`, `Err`, `Nil`). Here's an example of how you can add retry logic for async operations:
 
-```js
-import { gather, Err } from "@efflore/flow-sure";
+```ts
+import { Result, Err } from "@efflore/flow-sure";
 
-async function fetchData() {
-    return await gather(
-        () => fetch('/api/data').then(res => res.json()),
-        3, // 3 retries
-        1000 // 1 second initial delay, exponential backoff
-    ).match({
-        Nil: () => Err(new Error("No data found"))
-    });
+const fetchData = async () => {
+    const response = await fetch('/api/data');
+    if (!response.ok) return Err.of(`Failed to fetch data: ${response.statusText}`);
+    return response.json();
 }
+
+const retry = <T>(
+    fn: () => Promise<MaybeResult<T>>,
+    retries: number,
+    delay: number
+) => Result.fromAsync(fn)
+        .catch((error: Error) => {
+            if (retries <= 0) return Err.of(error);
+            return new Promise(resolve => setTimeout(resolve, delay))
+                .then(() => retry(fn, retries - 1, delay * 2));
+        });
+
+// 3 attempts, exponential backoff with initial 1000ms delay
+const data = await retry(fetchData, 3, 1000);
 ```
 
-### Using flow() for Declarative Control
+### Using Result.flow() for Declarative Control
 
-`flow()` enables you to compose a series of functions (both sync and async) into a cohesive pipeline:
+`Result.flow()` enables you to compose a series of functions (both sync and async) into a cohesive pipeline:
 
 ```js
 import { flow } from "@efflore/flow-sure";
 
-const result = await flow(
+const result = await Result.flow(
     10,
     x => x * 2,
     async x => await someAsyncOperation(x)

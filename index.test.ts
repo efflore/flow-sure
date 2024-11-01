@@ -1,5 +1,6 @@
 import { describe, test, expect } from "bun:test";
-import { Ok, Nil, Err, Maybe, Result, flow } from "./index";
+import { Ok, Nil, Err, Maybe, Result } from "./index";
+import { MaybeResult } from "./lib/result";
 
 /* === Types === */
 
@@ -60,7 +61,7 @@ describe("Ok Use Case", () => {
     });
 });
 
-describe("Gather Use Case", () => {
+describe("Result.fromAsync Use Case", () => {
 
 	// Mock fetch function to simulate network request with 200ms delay and 30% failure rate
 	const mockFetch = (url: string): Promise<Response> => new Promise((resolve, reject) => {
@@ -93,7 +94,7 @@ describe("Gather Use Case", () => {
 	const fetchData = async () => {
 		const response = await mockFetch('/api/data')
 		if (!response.ok) return Err.of(`Failed to fetch data: ${response.statusText}`)
-		return await response.json()
+		return response.json()
 	}
 
 	// Step 2: Validate data
@@ -126,8 +127,19 @@ describe("Gather Use Case", () => {
 
 	const fetchTreeData = async () => {
 
+		const retry = <T>(
+			fn: () => Promise<MaybeResult<T>>,
+			retries: number,
+			delay: number
+		) => Result.fromAsync(fn)
+				.catch((error: Error) => {
+					if (retries <= 0) return Err.of(error)
+					return new Promise(resolve => setTimeout(resolve, delay))
+						.then(() => retry(fn, retries - 1, delay * 2))
+				})
+
 		// 3 attempts, exponential backoff with initial 1000ms delay
-		const data = await Result.fromAsync(fetchData, 3, 1000)
+		const data = await retry(fetchData, 3, 1000)
 
 		// Validate the data and build the tree structure
 		return data
@@ -577,7 +589,7 @@ describe("Result.fromAsync Function", () => {
 
 describe("Flow Function", () => {
 	test("flow() with a successful Promise resolves to Ok", async () => {
-        const res = await flow(
+        const res = await Result.flow(
 			5,
 			double,
 			async x => x
@@ -590,7 +602,7 @@ describe("Flow Function", () => {
     });
 
     test("flow() with a Promise rejecting in the middle rejects with Err", async () => {
-        const res = await flow(
+        const res = await Result.flow(
             5,
             double,
 			async _ => Promise.reject(new Error("Error in second stage")),
