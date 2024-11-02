@@ -63,10 +63,10 @@ export const fromAsync = async <T>(
  * Check if a value is a Result type
  * 
  * @since 0.9.6
- * @param {unknown} value - the value to check
+ * @param {any} value - the value to check
  * @returns {boolean} - true if the value is a Result type, false otherwise
  */
-export const isResult = (value: unknown): value is Result<unknown> =>
+export const isResult = (value: any): value is Result<any> =>
 	Ok.isOk(value) || Nil.isNil(value) || Err.isErr(value)
 
 /**

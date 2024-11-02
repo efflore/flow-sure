@@ -15,7 +15,7 @@ export type Maybe<T> = Ok<T> | Nil
  */
 export const of = <T>(value: T): Maybe<T> =>
 	value == null ? Nil.of()
-		: isMaybe(value) ? value as Maybe<T>
+		: isMaybe(value) ? value
 		: Ok.of(value)
 
 /**
@@ -25,5 +25,5 @@ export const of = <T>(value: T): Maybe<T> =>
  * @param {unknown} value - the value to check
  * @returns {boolean} - true if the value is a Maybe type, false otherwise
  */
-export const isMaybe = (value: unknown): value is Maybe<unknown> =>
+export const isMaybe = (value: any): value is Maybe<any> =>
 	Ok.isOk(value) || Nil.isNil(value)

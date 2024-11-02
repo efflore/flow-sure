@@ -1,7 +1,7 @@
 {
   "name": "@efflore/flow-sure",
   "version": "0.9.7",
-  "description": "FlowSure - a Result monad in TypeScript. Data types Ok, Nil, Err with ensure(), attempt() async gather() and flow() functions.",
+  "description": "FlowSure - a Result monad in TypeScript. Data types Ok, Nil, Err with Maybe.of(), Result.from(), Result.fromAsync() and Result.flow() functions.",
   "main": "index.js",
   "types": "index.d.ts",
   "scripts": {
@@ -12,6 +12,17 @@
   "type": "module",
   "author": "Esther Brunner",
   "license": "MIT",
+  "keywords": [
+    "FlowSure",
+    "Missing Values",
+    "Optional",
+    "Maybe",
+    "Error Handling",
+    "Result",
+	"Monad",
+	"Function Composition",
+	"Flow"
+  ],
   "publishConfig": {
     "access": "public"
   },
