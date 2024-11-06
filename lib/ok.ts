@@ -1,11 +1,11 @@
 import { type Cases, isFunction, isInstanceOf, noOp } from './util'
-import { Nil } from './nil'
+import { nil, Nil } from './nil'
 import type { Maybe } from './maybe'
 import type { Result } from './result'
 
 /* === Types === */
 
-export interface Ok<T> {
+interface Ok<T> {
     map: <U extends {}>(fn: (value: T) => U) => Ok<U>
     chain: <U>(fn: (value: T) => Result<U>) => Result<U>
     filter: (fn: (value: T) => boolean) => Ok<T> | Nil
@@ -26,26 +26,8 @@ export interface Ok<T> {
  * @property {NonNullable<T>} value - the value
  * @method get(): NonNullable<T>
  */
-export class Ok<T> {
+class Ok<T> {
 	constructor(public readonly value: T) {}
-
-	/**
-	 * Create an Ok value
-	 * 
-	 * @since 0.9.6
-	 * @param {NonNullable<T>} value - the value
-	 * @returns {Ok<T>} - the Ok instance
-	 */
-	static of = <T>(value: T): Ok<T> => new Ok(value)
-
-	/**
-	 * Check if the Ok value is an instance of Ok
-	 * 
-	 * @since 0.9.6
-	 * @param {unknown} value - the value to check
-	 * @returns {boolean} - true if the value is an instance of Ok
-	 */
-	static isOk = isInstanceOf(Ok)
 
 	/**
 	 * Unwrap the Ok value
@@ -78,7 +60,7 @@ okProto.filter = okProto.guard = function <T>(
     this: Ok<T>,
     fn: (value: T) => boolean
 ): Maybe<T> {
-	return fn(this.value) ? this : Nil.of()
+	return fn(this.value) ? this : nil()
 }
 
 okProto.or = okProto.catch = noOp
@@ -89,3 +71,23 @@ okProto.match = function <T>(
 ): any {
 	return isFunction(cases.Ok) ? cases.Ok(this.value) : this
 }
+
+/**
+ * Create an Ok value
+ * 
+ * @since 0.9.6
+ * @param {NonNullable<T>} value - the value
+ * @returns {Ok<T>} - the Ok instance
+ */
+const ok = /*#__PURE__*/ <T>(value: T): Ok<T> => new Ok(value)
+
+/**
+ * Check if the Ok value is an instance of Ok
+ * 
+ * @since 0.9.6
+ * @param {unknown} value - the value to check
+ * @returns {boolean} - true if the value is an instance of Ok
+ */
+const isOk = /*#__PURE__*/ isInstanceOf(Ok)
+
+export { Ok, ok, isOk }

@@ -9,20 +9,20 @@ type Cases<T, E extends Error> = {
 
 /* === Utility Functions === */
 
-const isFunction = (value: unknown): value is (...args: any[]) => any =>
+const isFunction = /*#__PURE__*/ (value: unknown): value is (...args: any[]) => any =>
     typeof value === 'function'
 
-const isAsyncFunction = (value: unknown): value is (...args: any[]) => Promise<any> | PromiseLike<any> =>
+const isAsyncFunction = /*#__PURE__*/ (value: unknown): value is (...args: any[]) => Promise<any> | PromiseLike<any> =>
 	isFunction(value) && /^async\s+/.test(value.toString())
 
-const isDefined = (value: unknown): value is NonNullable<typeof value> =>
+const isDefined = /*#__PURE__*/ (value: unknown): value is NonNullable<typeof value> =>
     value != null
 
-const isInstanceOf = <T>(type: new (...args: any[]) => T) =>
+const isInstanceOf = /*#__PURE__*/ <T>(type: new (...args: any[]) => T) =>
 	(value: unknown): value is T =>
 		value instanceof type
 
-const isError = (value: unknown): value is Error =>
+const isError = /*#__PURE__*/ (value: unknown): value is Error =>
 	isInstanceOf(Error)(value)
 
 const noOp = function<T>(this: T) { return this }

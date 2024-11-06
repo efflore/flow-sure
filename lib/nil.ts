@@ -1,11 +1,11 @@
 
 import { type Cases, isFunction, noOp } from "./util"
 import { Ok } from "./ok"
-import { type Maybe, of } from "./maybe"
+import { type Maybe, maybe } from "./maybe"
 
 /* === Types === */
 
-export interface Nil {
+interface Nil {
     map: (_: any) => Nil
     chain: (_: any) => Nil
     filter: (_: any) => Nil
@@ -25,26 +25,8 @@ export interface Nil {
  * @static of(): Nil
  * @method get(): undefined
  */
-export class Nil {
-	private static instance = new Nil()
-
-	/**
-	 * Get the singleton "Nil" instance
-	 * 
-	 * @since 0.9.6
-	 * @returns {Nil}
-	 */
-	static of = (): Nil => Nil.instance
-
-	/**
-	 * Check if the given value is "Nil"
-	 * 
-	 * @since 0.9.6
-	 * @param {unknown} value - the value to check
-	 * @returns {boolean} - whether the value is "Nil"
-	 */
-	static isNil = (value: unknown): value is Nil  =>
-		value === Nil.instance
+class Nil {
+	static instance = new Nil()
 	
 	/**
 	 * Unwrap the "Nil" value
@@ -52,14 +34,14 @@ export class Nil {
 	 * @since 0.9.0
 	 * @returns {undefined}
 	 */
-	get = (): undefined => undefined
+	get = /*#__PURE__*/ (): undefined => undefined
 }
 
 const nilProto = Nil.prototype
 
 nilProto.map = nilProto.chain = nilProto.filter = nilProto.guard = nilProto.catch = noOp
 
-nilProto.or = <T>(fn: () => T): Maybe<T> => of(fn())
+nilProto.or = /*#__PURE__*/ <T>(fn: () => T): Maybe<T> => maybe(fn())
 
 nilProto.match = function (
 	this: Nil,
@@ -68,4 +50,22 @@ nilProto.match = function (
 	return isFunction(cases.Nil) ? cases.Nil() : this
 }
 
-export default Nil
+/**
+ * Get the singleton "Nil" instance
+ * 
+ * @since 0.9.6
+ * @returns {Nil}
+ */
+const nil = /*#__PURE__*/ (): Nil => Nil.instance
+
+/**
+ * Check if the given value is "Nil"
+ * 
+ * @since 0.9.6
+ * @param {unknown} value - the value to check
+ * @returns {boolean} - whether the value is "Nil"
+ */
+const isNil = /*#__PURE__*/ (value: unknown): value is Nil  =>
+	value === Nil.instance
+
+export { Nil, nil, isNil }

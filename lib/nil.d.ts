@@ -1,6 +1,6 @@
 import { type Cases } from "./util";
 import { Ok } from "./ok";
-export interface Nil {
+interface Nil {
     map: (_: any) => Nil;
     chain: (_: any) => Nil;
     filter: (_: any) => Nil;
@@ -17,23 +17,8 @@ export interface Nil {
  * @static of(): Nil
  * @method get(): undefined
  */
-export declare class Nil {
-    private static instance;
-    /**
-     * Get the singleton "Nil" instance
-     *
-     * @since 0.9.6
-     * @returns {Nil}
-     */
-    static of: () => Nil;
-    /**
-     * Check if the given value is "Nil"
-     *
-     * @since 0.9.6
-     * @param {unknown} value - the value to check
-     * @returns {boolean} - whether the value is "Nil"
-     */
-    static isNil: (value: unknown) => value is Nil;
+declare class Nil {
+    static instance: Nil;
     /**
      * Unwrap the "Nil" value
      *
@@ -42,4 +27,19 @@ export declare class Nil {
      */
     get: () => undefined;
 }
-export default Nil;
+/**
+ * Get the singleton "Nil" instance
+ *
+ * @since 0.9.6
+ * @returns {Nil}
+ */
+declare const nil: () => Nil;
+/**
+ * Check if the given value is "Nil"
+ *
+ * @since 0.9.6
+ * @param {unknown} value - the value to check
+ * @returns {boolean} - whether the value is "Nil"
+ */
+declare const isNil: (value: unknown) => value is Nil;
+export { Nil, nil, isNil };

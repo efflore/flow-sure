@@ -1,8 +1,8 @@
 import { type Cases } from "./util";
 import type { Ok } from "./ok";
-import { Nil } from "./nil";
+import { type Nil } from "./nil";
 import type { Result } from "./result";
-export interface Err<E extends Error> {
+interface Err<E extends Error> {
     map: (_: any) => Err<E>;
     chain: (_: any) => Err<E>;
     filter: (_: any) => Nil;
@@ -20,25 +20,9 @@ export interface Err<E extends Error> {
  * @static of(error: any): Err<E>
  * @method get(): @throws E
  */
-export declare class Err<E extends Error> {
+declare class Err<E extends Error> {
     readonly error: E;
     constructor(error: E);
-    /**
-     * Create a new "Err" value from an Error or any other value
-     *
-     * @since 0.9.6
-     * @param {unknown} error - the error to create an "Err" value from
-     * @returns {Err<Error>} - the new "Err" value
-     */
-    static of: (error: unknown) => Err<Error>;
-    /**
-     * Check if this is an "Err" value
-     *
-     * @since 0.9.6
-     * @param {unknown} value - the value to check
-     * @returns {boolean} - whether the value is an "Err" value
-     */
-    static isErr: (value: unknown) => value is Err<any>;
     /**
      * Re-throw the contained error
      *
@@ -47,4 +31,20 @@ export declare class Err<E extends Error> {
      */
     get(): void;
 }
-export default Err;
+/**
+ * Create a new "Err" value from an Error or any other value
+ *
+ * @since 0.9.6
+ * @param {unknown} error - the error to create an "Err" value from
+ * @returns {Err<Error>} - the new "Err" value
+ */
+declare const err: (error: unknown) => Err<Error>;
+/**
+ * Check if this is an "Err" value
+ *
+ * @since 0.9.6
+ * @param {unknown} value - the value to check
+ * @returns {boolean} - whether the value is an "Err" value
+ */
+declare const isErr: (value: unknown) => value is Err<any>;
+export { Err, err, isErr };

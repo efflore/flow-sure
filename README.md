@@ -1,6 +1,6 @@
 # FlowSure
 
-Version 0.9.7
+Version 0.9.8
 
 **FlowSure** is a lightweight, functional library designed to handle asynchronous operations and error-prone logic in JavaScript and TypeScript with ease. Inspired by functional programming, it provides `Result` monads (`Ok`, `Err`, `Nil`) to elegantly manage both synchronous and asynchronous workflows, converting complex error handling into expressive, chainable flows.
 
@@ -27,10 +27,9 @@ yarn add @efflore/flow-sure
 FlowSure's `Result` types (`Ok`, `Err`, `Nil`) let you manage value transformations and error handling with `.map()`, `.chain()`, `.filter()`, `.guard()`, `.or()` and `.catch()` methods. The `match()` method allows for pattern matching according to the `Result`type. Finally, `get()` will return the value (if `Ok`) or `undefined` (if `Nil`) or rethow the catched `Error` (if `Err`).
 
 ```js
-import { Ok } from "@efflore/flow-sure";
+import { ok } from "@efflore/flow-sure";
 
-const result = Ok(5).map(x => x * 2).filter(x => x > 5);
-result.match({
+ok(5).map(x => x * 2).filter(x => x > 5).match({
     Ok: value => console.log("Transformed Value:", value),
     Nil: () => console.warn("Value didn't meet filter criteria"),
     Err: error => console.error("Error:", error.message)
@@ -61,15 +60,15 @@ result.match({
 * `.match()`: Allows pattern matching across `Ok`, `Nil`, and `Err`.
 * `.get()`: Retrieves the contained value, returning `undefined` for `Nil` and throwing for `Err`.
 
-### Handling Optional or Missing Values with Maybe.of()
+### Handling Optional or Missing Values with maybe()
 
-Use `Maybe.of()` to wrap values that might be missing (`undefined` or `null`) and convert them into `Ok` or `Nil`. This is particularly useful for safely working with values that may or may not be present.
+Use `maybe()` to wrap values that might be missing (`undefined` or `null`) and convert them into `Ok` or `Nil`. This is particularly useful for safely working with values that may or may not be present.
 
 ```js
-import { Maybe } from "@efflore/flow-sure";
+import { maybe } from "@efflore/flow-sure";
 
 const optionalValue = undefined; // Could also be null or an actual value
-Maybe.of(optionalValue)
+maybe(optionalValue)
     .map(value => value * 2)
     .filter(value => value > 5)
     .match({
@@ -78,14 +77,14 @@ Maybe.of(optionalValue)
     });
 ```
 
-### Handling Exceptions with Result.from()
+### Handling Exceptions with result()
 
-`Result.from()` is used to safely execute functions that may throw exceptions. It captures exceptions and converts them into `Err` values, allowing you to handle errors gracefully within the chain.
+`result()` is used to safely execute functions that may throw exceptions. It captures exceptions and converts them into `Err` values, allowing you to handle errors gracefully within the chain.
 
 ```js
-import { Result } from "@efflore/flow-sure";
+import { result } from "@efflore/flow-sure";
 
-const result = Result.from(() => {
+result(() => {
     // Function that may throw an error
     return JSON.parse("invalid json");
 }).match({
@@ -94,16 +93,16 @@ const result = Result.from(() => {
 });
 ```
 
-### Handling Promises with Result.fromAsync()
+### Handling Promises with asyncResult()
 
-Use `Result.fromAsync()` to retrieve and handle a promised result, wrapping it in `Result` types (`Ok`, `Err`, `Nil`). Here's an example of how you can add retry logic for async operations:
+Use `asyncResult()` to retrieve and handle a promised result, wrapping it in `Result` types (`Ok`, `Err`, `Nil`). Here's an example of how you can add retry logic for async operations:
 
 ```ts
-import { Result, Err } from "@efflore/flow-sure";
+import { asyncResult, err } from "@efflore/flow-sure";
 
 const fetchData = async () => {
     const response = await fetch('/api/data');
-    if (!response.ok) return Err.of(`Failed to fetch data: ${response.statusText}`);
+    if (!response.ok) return err(`Failed to fetch data: ${response.statusText}`);
     return response.json();
 }
 
@@ -111,15 +110,18 @@ const retry = <T>(
     fn: () => Promise<MaybeResult<T>>,
     retries: number,
     delay: number
-) => Result.fromAsync(fn)
+) => asyncResult(fn)
         .catch((error: Error) => {
-            if (retries <= 0) return Err.of(error);
+            if (retries <= 0) return err(error);
             return new Promise(resolve => setTimeout(resolve, delay))
                 .then(() => retry(fn, retries - 1, delay * 2));
         });
 
 // 3 attempts, exponential backoff with initial 1000ms delay
-const data = await retry(fetchData, 3, 1000);
+const loadData = async () {
+	const data = await retry(fetchData, 3, 1000);
+	// Process data ...
+}
 ```
 
 ### Using Result.flow() for Declarative Control
@@ -129,12 +131,15 @@ const data = await retry(fetchData, 3, 1000);
 ```js
 import { flow } from "@efflore/flow-sure";
 
-const result = await Result.flow(
-    10,
-    x => x * 2,
-    async x => await someAsyncOperation(x)
-).match({
-    Ok: finalValue => console.log("Result:", finalValue),
-    Err: error => console.error("Error:", error.message)
-});
+const processData = async () {
+	const result = await flow(
+		10,
+		x => x * 2,
+		async x => await someAsyncOperation(x)
+	).match({
+		Ok: finalValue => console.log("Result:", finalValue),
+		Err: error => console.error("Error:", error.message)
+	});
+	// Render data ...
+}
 ```

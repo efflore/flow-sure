@@ -1,7 +1,7 @@
 import { type Cases } from './util';
 import { Nil } from './nil';
 import type { Result } from './result';
-export interface Ok<T> {
+interface Ok<T> {
     map: <U extends {}>(fn: (value: T) => U) => Ok<U>;
     chain: <U>(fn: (value: T) => Result<U>) => Result<U>;
     filter: (fn: (value: T) => boolean) => Ok<T> | Nil;
@@ -19,25 +19,9 @@ export interface Ok<T> {
  * @property {NonNullable<T>} value - the value
  * @method get(): NonNullable<T>
  */
-export declare class Ok<T> {
+declare class Ok<T> {
     readonly value: T;
     constructor(value: T);
-    /**
-     * Create an Ok value
-     *
-     * @since 0.9.6
-     * @param {NonNullable<T>} value - the value
-     * @returns {Ok<T>} - the Ok instance
-     */
-    static of: <T_1>(value: T_1) => Ok<T_1>;
-    /**
-     * Check if the Ok value is an instance of Ok
-     *
-     * @since 0.9.6
-     * @param {unknown} value - the value to check
-     * @returns {boolean} - true if the value is an instance of Ok
-     */
-    static isOk: (value: unknown) => value is Ok<any>;
     /**
      * Unwrap the Ok value
      *
@@ -46,3 +30,20 @@ export declare class Ok<T> {
      */
     get(): T;
 }
+/**
+ * Create an Ok value
+ *
+ * @since 0.9.6
+ * @param {NonNullable<T>} value - the value
+ * @returns {Ok<T>} - the Ok instance
+ */
+declare const ok: <T>(value: T) => Ok<T>;
+/**
+ * Check if the Ok value is an instance of Ok
+ *
+ * @since 0.9.6
+ * @param {unknown} value - the value to check
+ * @returns {boolean} - true if the value is an instance of Ok
+ */
+declare const isOk: (value: unknown) => value is Ok<any>;
+export { Ok, ok, isOk };
