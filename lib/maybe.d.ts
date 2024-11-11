@@ -7,7 +7,7 @@ export type Maybe<T> = Ok<T> | Nil;
  * @since 0.9.6
  * @param {T} value - a value
  */
-export declare const maybe: <T>(value: T) => Maybe<T>;
+export declare const maybe: <T>(value?: T) => Maybe<T>;
 /**
  * Check if a value is a Maybe type
  *

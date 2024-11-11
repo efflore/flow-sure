@@ -535,8 +535,8 @@ describe("Maybe Function", () => {
     });
 
     test("maybe() with undefined value returns Nil", () => {
-        const res = maybe(undefined);
-        expect(isNil(res)).toBe(true); // maybe(undefined) should return Nil
+        const res = maybe();
+        expect(isNil(res)).toBe(true); // maybe() should return Nil
     });
 });
 

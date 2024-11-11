@@ -16,8 +16,8 @@ Version 0.9.8
 # with npm
 npm install @efflore/flow-sure
 
-# or with yarn
-yarn add @efflore/flow-sure
+# or with bun
+bun add @efflore/flow-sure
 ```
 
 ## Basic Usage

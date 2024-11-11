@@ -1,6 +1,6 @@
 /**
  * @name FlowSure
- * @version 0.9.7
+ * @version 0.9.8
  * @author Esther Brunner
  */
 export { Ok, ok, isOk } from './lib/ok';

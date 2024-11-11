@@ -13,7 +13,7 @@ export type Maybe<T> = Ok<T> | Nil
  * @since 0.9.6
  * @param {T} value - a value
  */
-export const maybe = /*#__PURE__*/ <T>(value: T): Maybe<T> =>
+export const maybe = /*#__PURE__*/ <T>(value?: T): Maybe<T> =>
 	value == null ? nil()
 		: isMaybe(value) ? value
 		: ok(value)
