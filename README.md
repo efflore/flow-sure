@@ -8,7 +8,7 @@ Version 0.9.8
 
 * **Compositional Error Handling**: Capture, handle, and propagate errors without cluttering your code.
 * **Monadic Chains for Flow Control**: Seamlessly compose sync and async functions with `Ok`, `Err`, and `Nil` monads.
-* **Functional Flow Composition**: Construct robust, declarative flows with `Result.flow()`, using Result types to maintain clean, predictable control paths.
+* **Functional Flow Composition**: Construct robust, declarative flows with `flow()`, using Result types to maintain clean, predictable control paths.
 
 ## Installation
 
@@ -124,9 +124,9 @@ const loadData = async () {
 }
 ```
 
-### Using Result.flow() for Declarative Control
+### Using flow() for Declarative Control
 
-`Result.flow()` enables you to compose a series of functions (both sync and async) into a cohesive pipeline:
+`flow()` enables you to compose a series of functions (both sync and async) into a cohesive pipeline:
 
 ```js
 import { flow } from "@efflore/flow-sure";
