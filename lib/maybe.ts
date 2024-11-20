@@ -3,7 +3,8 @@ import { type Nil, nil, isNil } from "./nil"
 
 /* === Types === */
 
-export type Maybe<T> = Ok<T> | Nil
+type Maybe<T> = Ok<T> | Nil
+type MaybeMaybe<T> = Maybe<T> | T | null | undefined
 
 /* === Namespace Maybe === */
 
@@ -11,9 +12,9 @@ export type Maybe<T> = Ok<T> | Nil
  * Wrap a value in a Maybe container if it is not already a Maybe type
  * 
  * @since 0.9.6
- * @param {T} value - a value
+ * @param {MaybeMaybe<T>} value - a value
  */
-export const maybe = /*#__PURE__*/ <T>(value?: T): Maybe<T> =>
+const maybe = /*#__PURE__*/ <T>(value?: MaybeMaybe<T>): Maybe<T> =>
 	value == null ? nil()
 		: isMaybe(value) ? value
 		: ok(value)
@@ -25,5 +26,7 @@ export const maybe = /*#__PURE__*/ <T>(value?: T): Maybe<T> =>
  * @param {unknown} value - the value to check
  * @returns {boolean} - true if the value is a Maybe type, false otherwise
  */
-export const isMaybe = /*#__PURE__*/ (value: any): value is Maybe<any> =>
+const isMaybe = /*#__PURE__*/ (value: any): value is Maybe<any> =>
 	isOk(value) || isNil(value)
+
+export { type Maybe, type MaybeMaybe, maybe, isMaybe }

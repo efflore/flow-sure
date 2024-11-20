@@ -2,7 +2,7 @@ import { type Ok } from "./ok";
 import { type Nil } from "./nil";
 import { type Err } from "./err";
 type Result<T> = Ok<T> | Nil | Err<Error>;
-type MaybeResult<T> = T | Error | Result<T> | undefined;
+type MaybeResult<T> = Result<T> | T | Error | null | undefined;
 /**
  * Get a Result from a function that may throw an error
  *
@@ -18,15 +18,15 @@ declare const result: <T>(fn: (...args: any[]) => MaybeResult<T>, ...args: any[]
  * @param {() => Promise<MaybeResult<T>>} fn - async function to try and maybe retry
  * @returns {Promise<Result<T>>} - promise that resolves to the result of the function or fails with the last error encountered
  */
-declare const asyncResult: <T>(fn: (...args: any[]) => Promise<MaybeResult<T>>, ...args: any[]) => Promise<Result<T>>;
+declare const task: <T>(fn: (...args: any[]) => Promise<MaybeResult<T>>, ...args: any[]) => Promise<Result<T>>;
 /**
  * Execute a series of functions in sequence
  *
  * @since 0.9.0
  * @param {[T | (() => AsyncResult<T>), ...((input: T) => AsyncResult<T>)[]]} fns - array of functions to execute in sequence
- * @returns {Promise<Result<any, any>>} - promise that resolves to the result of the last function or fails with the first error encountered
+ * @returns {Promise<Result<R>>} - promise that resolves to the result of the last function or fails with the first error encountered
  */
-declare const flow: <T>(fns_0: T | (() => MaybeResult<T> | Promise<MaybeResult<T>>), ...fns: ((input: T) => MaybeResult<T> | Promise<MaybeResult<T>>)[]) => Promise<Result<any>>;
+declare const flow: <T, R>(fns_0: T | (() => MaybeResult<T> | Promise<MaybeResult<T>>), ...fns: ((input: T) => MaybeResult<T> | Promise<MaybeResult<T>>)[]) => Promise<Result<R>>;
 /**
  * Check if a value is a Result type
  *
@@ -42,13 +42,13 @@ declare const isResult: (value: any) => value is Result<any>;
  * @param {MaybeResult<T>} value - a Result or value
  * @returns {Result<T>} - an Ok<T>, Nil or Err<Error> containing the value
  */
-declare const toResult: <T>(value: MaybeResult<T>) => Result<T>;
+declare const wrap: <T>(value: MaybeResult<T>) => Result<T>;
 /**
  * Unwrap a Result container, returning the value if it is Ok, or the error if it is Err
  *
  * @since 0.9.6
  * @param {MaybeResult<T>} value - a value or Result
- * @returns {T | Error | undefined} - the value or error from the Result
+ * @returns {T | Error | void} - the value or error from the Result
  */
-declare const fromResult: <T>(value: Result<T> | T | undefined) => T | Error | undefined;
-export { type Result, type MaybeResult, result, asyncResult, flow, isResult, toResult, fromResult, };
+declare const unwrap: <T>(value: Result<T> | T | void) => T | Error | void;
+export { type Result, type MaybeResult, result, task, flow, isResult, wrap, unwrap, };
