@@ -203,13 +203,52 @@ console.log(wrapped.gone); // true
 
 **FlowSure** also exports the following utility functions it uses internally:
 
-- `isFunction(value: unknown): value is (...args: any[]) => any`: Checks if the given value is a function.
-- `isAsyncFunction(value: unknown): value is (...args: any[]) => Promise<any>`: Checks if the given value is an asynchronous function (returns a `Promise`).
-- `isDefined(value: unknown): value is NonNullable<typeof value>`: Checks if the given value is neither `null` nor `undefined`.
-- `isMutable(value: unknown): value is Record<PropertyKey, unknown>`: Checks if the given value is a mutable object (non-`null` and `typeof value === "object"`).
-- `isInstanceOf<T>(type: new (...args: any[]) => T): (value: unknown) => value is T`: Creates a type guard to check if a value is an instance of a specific class or type.
-- `isError(value: unknown): value is Error`: Checks if the given value is an Error instance.
-- `log(msg: string, logger: (...args: any[]) => void = console.log): (...args: any[]) => any`: Logs a message and additional arguments using the specified logger (default: console.log). Returns the first argument for chaining.
-- `tryClone<T>(value: T, warn = true): T`: Attempts to clone a mutable object using structuredClone(). If cloning fails, logs a warning (if warn is true) and returns the original value.
-- `wrap<T>(value: MaybeResult<T>): Result<T>`: Wraps a value in a `Result` container. If the value is an error, it returns `Err`. If the value is undefined or null, it returns `Nil`. Otherwise, it returns `Ok`. Values that are already of a `Result` type are not double-wrapped.
-- `unwrap<T>(value: Result<T> | T | void): T | Error | void`: Unwraps a `Result` container, returning the value if it is `Ok`, the error if it is `Err`, or undefined if it is `Nil`.
+```ts
+isFunction(value: unknown): value is (...args: any[]) => any
+```
+Checks if the given value is a function.
+
+```ts
+isAsyncFunction(value: unknown): value is (...args: any[]) => Promise<any>
+```
+Checks if the given value is an asynchronous function (returns a `Promise`).
+
+```ts
+isDefined(value: unknown): value is NonNullable<typeof value>
+```
+Checks if the given value is neither `null` nor `undefined`.
+
+```ts
+isMutable(value: unknown): value is Record<PropertyKey, unknown>
+```
+Checks if the given value is a mutable object (non-`null` and `typeof value === "object"`).
+
+```ts
+isInstanceOf<T>(type: new (...args: any[]) => T): (value: unknown) => value is T
+```
+Creates a type guard to check if a value is an instance of a specific class or type.
+
+```ts
+isError(value: unknown): value is Error
+```
+Checks if the given value is an Error instance.
+
+```ts
+log(msg: string, logger: (...args: any[]) => void = console.log): (...args: any[]) => any
+```
+Logs a message and additional arguments using the specified logger (default: console.log). Returns the first argument for chaining.
+
+```ts
+tryClone<T>(value: T, warn = true): T
+```
+Attempts to clone a mutable object using structuredClone(). If cloning fails, logs a warning (if warn is true) and returns the original value.
+
+```ts
+wrap<T>(value: MaybeResult<T>): Result<T>
+```
+Wraps a value in a `Result` container. If the value is an error, it returns `Err`. If the value is undefined or null, it returns `Nil`. Otherwise, it returns `Ok`. Values that are already of a `Result` type are not double-wrapped.
+
+```ts
+unwrap<T>(value: Result<T> | T | void): T | Error | void
+```
+Unwraps a `Result` container, returning the value if it is `Ok`, the error if it is `Err`, or undefined if it is `Nil`.
