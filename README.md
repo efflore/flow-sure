@@ -1,14 +1,36 @@
 # FlowSure
 
-Version 0.9.8
+Version 0.10.0
 
-**FlowSure** is a lightweight, functional library designed to handle asynchronous operations and error-prone logic in JavaScript and TypeScript with ease. Inspired by functional programming, it provides `Result` monads (`Ok`, `Err`, `Nil`) to elegantly manage both synchronous and asynchronous workflows, converting complex error handling into expressive, chainable flows.
+Inspired by functional programming, **FlowSure** provides tools like `ok()`, `maybe()`, `result()`, `task()` and `flow()` to simplify complex workflows. Here's a quick example:
+
+```js
+import { ok, result } from "@efflore/flow-sure";
+
+ok(5)
+    .map(x => x * 2)
+    .filter(x => x > 5)
+    .match({
+        Ok: value => console.log("Success:", value),
+        Nil: () => console.warn("No value passed the filter"),
+        Err: error => console.error("Error:", error.message),
+    });
+
+result(() => JSON.parse("invalid json"))
+    .match({
+        Ok: value => console.log("Parsed:", value),
+        Err: error => console.error("Failed to parse:", error.message),
+    });
+```
 
 ## Key Features
 
-* **Compositional Error Handling**: Capture, handle, and propagate errors without cluttering your code.
-* **Monadic Chains for Flow Control**: Seamlessly compose sync and async functions with `Ok`, `Err`, and `Nil` monads.
-* **Functional Flow Composition**: Construct robust, declarative flows with `flow()`, using Result types to maintain clean, predictable control paths.
+- **Simplify Error Handling:** Capture and propagate errors elegantly with `Result` types.
+- **Composable Flows:** Chain both sync and async functions seamlessly using monadic methods.
+- **Declarative Control:** Use `flow()` to build clear, predictable pipelines.
+- **Immutability Assurance:** Safely wrap and clone mutable objects to avoid unintended side effects.
+
+**FlowSure** is very lightweight: around 1kB gzipped.
 
 ## Installation
 
@@ -41,18 +63,20 @@ ok(5).map(x => x * 2).filter(x => x > 5).match({
 | Method      | `Ok<T>`       | `Nil`               | `Err<E extends Error>` | Argument Type                                           | Return Type                |
 |-------------|---------------|---------------------|------------------------|---------------------------------------------------------|----------------------------|
 | `.map()`    | **Yes**       | No-op               | No-op                  | `(value: T) => U`                                       | `Ok<U>`, `Nil` or `Err<E>` |
-| `.chain()`  | **Yes**       | No-op               | No-op                  | `(value: T) => Result<U, Error>`                        | `Result<U, Error>`         |
+| `.chain()`  | **Yes**       | No-op               | No-op                  | `(value: T) => Result<U>`                               | `Result<U>`                |
+| `.await()`  | **Yes**       | No-op               | No-op                  | `async (value: T) => Result<U>`                         | `Promise<Result<U>>`       |
 | `.filter()` | **Yes**       | No-op               | Converts to `Nil`      | `(value: T) => boolean`                                 | `Maybe<T>`                 |
 | `.guard()`  | **Yes**       | No-op               | Converts to `Nil`      | `(value: T) => value is U`                              | `Maybe<T>`                 |
 | `.or()`     | No-op         | **Yes**             | **Yes**                | `() => T \| undefined`                                  | `Ok<T>` or `Maybe<T>`      |
-| `.catch()`  | No-op         | No-op               | **Yes**                | `(error: E) => Result<T, Error>`                        | `Result<T, Error>`         |
+| `.catch()`  | No-op         | No-op               | **Yes**                | `(error: E) => Result<T>`                               | `Result<T>`                |
 | `.match()`  | **Yes**       | **Yes**             | **Yes**                | `(value: T) => any`, `() => any` or `(error: E) => any` | `any`                      |
-| `.get()`    | Returns value | Returns `undefined` | Throws error           |  --                                                     | `T`, `undefined` or `E`    |
+| `.get()`    | Returns value | Returns `undefined` | Throws error           |  --                                                     | `T`, `void` or `E`         |
 
 #### Explanation of Each Method
 
 * `.map()`: Transforms the value if it exists (`Ok`); `Nil` and `Err` remain unchanged.
 * `.chain()`: Chains a function that returns a new `Result`, only applies to `Ok`.
+* `.await()`: Chains an async function that returns a `Promise` for a new `Result`, only applies to `Ok`.
 * `.filter()`: Filters `Ok` based on a condition; converts to `Nil` if the condition is not met.
 * `.guard()`: Similar to `.filter()`, but specifically used for type narrowing on `Ok`.
 * `.or()`: Provides a fallback for `Nil` and `Err`, leaving `Ok` unchanged.
@@ -62,7 +86,7 @@ ok(5).map(x => x * 2).filter(x => x > 5).match({
 
 ### Handling Optional or Missing Values with maybe()
 
-Use `maybe()` to wrap values that might be missing (`undefined` or `null`) and convert them into `Ok` or `Nil`. This is particularly useful for safely working with values that may or may not be present.
+Using `maybe()` ensures that `undefined` or `null` values are handled explicitly, reducing the risk of runtime errors caused by forgotten null checks. Instead of `if` statements scattered throughout your code, you can use methods like `.map()`, `.filter()`, and `.match()` to express intent clearly.
 
 ```js
 import { maybe } from "@efflore/flow-sure";
@@ -79,7 +103,9 @@ maybe(optionalValue)
 
 ### Handling Exceptions with result()
 
-`result()` is used to safely execute functions that may throw exceptions. It captures exceptions and converts them into `Err` values, allowing you to handle errors gracefully within the chain.
+`result()` is especially useful for wrapping code that may throw unexpected errors, such as parsing user input or accessing properties on potentially null objects.
+
+It captures exceptions and converts them into `Err` values, allowing you to handle errors gracefully within the chain.
 
 ```js
 import { result } from "@efflore/flow-sure";
@@ -93,12 +119,12 @@ result(() => {
 });
 ```
 
-### Handling Promises with asyncResult()
+### Handling Promises with task()
 
-Use `asyncResult()` to retrieve and handle a promised result, wrapping it in `Result` types (`Ok`, `Err`, `Nil`). Here's an example of how you can add retry logic for async operations:
+Use `task()` to retrieve and handle a promised result, wrapping it in `Result` types (`Ok`, `Err`, `Nil`). Here's an example of how you can add retry logic for async operations:
 
 ```ts
-import { asyncResult, err } from "@efflore/flow-sure";
+import { task, err } from "@efflore/flow-sure";
 
 const fetchData = async () => {
     const response = await fetch('/api/data');
@@ -110,12 +136,11 @@ const retry = <T>(
     fn: () => Promise<MaybeResult<T>>,
     retries: number,
     delay: number
-) => asyncResult(fn)
-        .catch((error: Error) => {
-            if (retries <= 0) return err(error);
-            return new Promise(resolve => setTimeout(resolve, delay))
-                .then(() => retry(fn, retries - 1, delay * 2));
-        });
+) => task(fn).catch((error: Error) => {
+        if (retries <= 0) return err(error);
+        return new Promise(resolve => setTimeout(resolve, delay))
+            .then(() => retry(fn, retries - 1, delay * 2));
+    });
 
 // 3 attempts, exponential backoff with initial 1000ms delay
 const loadData = async () {
@@ -143,3 +168,87 @@ const processData = async () {
 	// Render data ...
 }
 ```
+
+### Using ok() for Immutability Guarantees
+
+The `ok()` function wraps values to enforce immutability and prevent multiple retrievals. For mutable objects, it attempts to clone the value using `structuredClone()`. This ensures that modifications to the original object do not affect the wrapped value.
+
+> **Note:** Some types (e.g., DOM elements, promises, `WeakMap`, `WeakSet`) cannot be cloned due to `structuredClone()` limitations. In these cases, `ok()` falls back to treating the value as immutable without guarantees against external modification. Document these edge cases in your codebase if immutability is critical.
+
+The value of an `Ok` instance can only be retrieved once using `.get()`. Any subsequent attempts will throw a `ReferenceError`. You can check if the value has already been consumed using `isGone()` or the `.gone` property on the instance.
+
+```js
+import { ok } from '@efflore/flow-sure';
+
+// Example with a mutable object
+const original = { a: 1, b: 2 };
+const wrapped = ok(original);
+
+// Modifying the original object does not affect the wrapped value
+original.a = 42;
+console.log(wrapped.get()); // { a: 1, b: 2 } (immutable clone)
+
+// Attempting to retrieve the value again throws a ReferenceError
+try {
+    console.log(wrapped.get());
+} catch (e) {
+    console.error(e.message); // "Mutable reference has already been consumed"
+}
+
+// Check if the value has been consumed
+console.log(wrapped.gone); // true
+```
+
+### Exported Helper Functions
+
+**FlowSure** also exports the following utility functions it uses internally:
+
+```ts
+isFunction(value: unknown): value is (...args: any[]) => any
+```
+Checks if the given value is a function.
+
+```ts
+isAsyncFunction(value: unknown): value is (...args: any[]) => Promise<any>
+```
+Checks if the given value is an asynchronous function (returns a `Promise`).
+
+```ts
+isDefined(value: unknown): value is NonNullable<typeof value>
+```
+Checks if the given value is neither `null` nor `undefined`.
+
+```ts
+isMutable(value: unknown): value is Record<PropertyKey, unknown>
+```
+Checks if the given value is a mutable object (non-`null` and `typeof value === "object"`).
+
+```ts
+isInstanceOf<T>(type: new (...args: any[]) => T): (value: unknown) => value is T
+```
+Creates a type guard to check if a value is an instance of a specific class or type.
+
+```ts
+isError(value: unknown): value is Error
+```
+Checks if the given value is an Error instance.
+
+```ts
+log(msg: string, logger: (...args: any[]) => void = console.log): (...args: any[]) => any
+```
+Logs a message and additional arguments using the specified logger (default: console.log). Returns the first argument for chaining.
+
+```ts
+tryClone<T>(value: T, warn = true): T
+```
+Attempts to clone a mutable object using structuredClone(). If cloning fails, logs a warning (if warn is true) and returns the original value.
+
+```ts
+wrap<T>(value: MaybeResult<T>): Result<T>
+```
+Wraps a value in a `Result` container. If the value is an error, it returns `Err`. If the value is undefined or null, it returns `Nil`. Otherwise, it returns `Ok`. Values that are already of a `Result` type are not double-wrapped.
+
+```ts
+unwrap<T>(value: Result<T> | T | void): T | Error | void
+```
+Unwraps a `Result` container, returning the value if it is `Ok`, the error if it is `Err`, or undefined if it is `Nil`.

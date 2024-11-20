@@ -1,75 +1,117 @@
-import { type Cases, isFunction, isInstanceOf, noOp } from './util'
-import { nil, Nil } from './nil'
+import { type Cases, isFunction, isInstanceOf, isMutable, tryClone } from './util'
+import { nil } from './nil'
+import { err } from './err'
 import type { Maybe } from './maybe'
-import type { Result } from './result'
+import { type MaybeResult, type Result, result, task } from './result'
 
-/* === Types === */
+/* === Constants === */
 
-interface Ok<T> {
-    map: <U extends {}>(fn: (value: T) => U) => Ok<U>
-    chain: <U>(fn: (value: T) => Result<U>) => Result<U>
-    filter: (fn: (value: T) => boolean) => Ok<T> | Nil
-    guard: <U extends T>(fn: (value: T) => value is U) => Ok<U> | Nil
-    or: (_: any) => Ok<T>
-	catch: (_: any) => Ok<T>
-	match: (cases: Cases<T, Error>) => any
-}
+const consumedError = new ReferenceError('Mutable reference has already been consumed')
+const UNSET: any = Symbol()
 
-/* === Class === */
+/* === Class Ok === */
 
 /**
  * Create an "Ok" value, representing a value
  * 
  * @since 0.9.0
  * @class Ok<T>
- * @static of(value: T): Ok<T>
  * @property {NonNullable<T>} value - the value
- * @method get(): NonNullable<T>
  */
 class Ok<T> {
-	constructor(public readonly value: T) {}
+	private value: T
+	private mut: boolean
+
+	constructor(value: T) {
+		this.value = tryClone(value, false)
+		this.mut = isMutable(value)
+	}
+
+	/**
+	 * Check if the Ok value has been consumed
+	 */
+	get gone(): boolean {
+		return this.value === UNSET
+    }
+
+	/**
+     * Apply a function to the Ok value and return a new Ok instance
+     * 
+     * @since 0.9.0
+     * @param {(value: T) => NonNullable<U>} fn - the function to apply
+	 * @returns {Ok<U>} - a new Ok instance with the result of the function applied to the value
+	 */
+	map<U extends {}>(fn: (value: T) => NonNullable<U>): Ok<U> {
+		if (this.gone) throw consumedError
+        return ok(fn(this.value))
+    }
+
+	/**
+	 * Apply a function to the Ok value and return its resulting Result instance
+	 * 
+	 * @since 0.9.0
+	 * @param {(value: T) => MaybeResult<U>} fn - the function to apply
+	 * @returns {Result<U>} - the new Result instance of the function applied to the value
+	 */
+	chain<U>(fn: (value: T) => MaybeResult<U>): Result<U> {
+        return this.gone ? err(consumedError) : result(() => fn(this.value))
+    }
+
+	/**
+	 * Apply an asynchronous function to the Ok value and return its resulting Result instance
+	 * 
+	 * @since 0.9.0
+	 * @param {(value: T) => Promise<MaybeResult<U>>} fn - the async function to apply
+	 * @returns {Promise<Result<U>>} - the new Result instance wrapped in a Promise
+	 */
+	async await<U>(fn: (value: T) => Promise<MaybeResult<U>>): Promise<Result<U>> {
+		return this.gone ? Promise.resolve(err(consumedError)) : task(() => fn(this.value))
+	}
+
+	/**
+	 * Filter the Ok value based on a predicate function
+	 * 
+	 * @since 0.9.0
+	 * @param {function} fn - the predicate function
+	 * @returns {Maybe<T>} - the Ok instance with filtered value if the predicate function returns true, otherwise nil()
+	 */
+	filter(fn: (value: T) => boolean): Maybe<T> {
+        return !this.gone && fn(this.value) ? this : nil()
+    }
+	guard<U extends T>(fn: (value: T) => value is U): Maybe<T> {
+		return this.filter(fn)
+    }
+
+	/**
+	 * No-op methods for Ok
+	 */
+	or(_: any): Ok<T> { return this }
+	catch(_: any): Ok<T> { return this }
+
+	/**
+	 * Match the Ok value with a set of cases
+	 * 
+	 * @since 0.9.0
+	 * @param {Cases<T>} cases - a set of cases to match against
+	 * @returns {any} - the result of the Ok function in cases or the original Ok instance
+	 */
+	match(cases: Cases<T, Error>): any {
+		if (this.gone) return isFunction(cases.Gone) ? cases.Gone() : err(consumedError)
+		return isFunction(cases.Ok) ? cases.Ok(this.value) : this
+    }
 
 	/**
 	 * Unwrap the Ok value
 	 * 
 	 * @since 0.9.0
-	 * @returns {T} - the value
+	 * @returns {T | never} - the value or throws an error if the value has already been consumed
 	 */
-	get(): T {
-		return this.value
+	get(): T | never {
+		if (this.gone) throw consumedError
+		const val = this.value
+		if (this.mut) this.value = UNSET
+		return val
 	}
-}
-
-const okProto = Ok.prototype
-
-okProto.map = function <T, U extends {}>(
-	this: Ok<T>,
-	fn: (value: T) => U
-): Ok<U> {
-	return new Ok(fn(this.value))
-}
-
-okProto.chain = function <T, U>(
-	this: Ok<T>,
-	fn: (value: T
-) => Result<U>): Result<U> {
-    return fn(this.value)
-}
-
-okProto.filter = okProto.guard = function <T>(
-    this: Ok<T>,
-    fn: (value: T) => boolean
-): Maybe<T> {
-	return fn(this.value) ? this : nil()
-}
-
-okProto.or = okProto.catch = noOp
-
-okProto.match = function <T>(
-    this: Ok<T>,
-    cases: Cases<T, Error>
-): any {
-	return isFunction(cases.Ok) ? cases.Ok(this.value) : this
 }
 
 /**
@@ -82,12 +124,22 @@ okProto.match = function <T>(
 const ok = /*#__PURE__*/ <T>(value: T): Ok<T> => new Ok(value)
 
 /**
- * Check if the Ok value is an instance of Ok
+ * Check if a value is an instance of Ok
  * 
  * @since 0.9.6
  * @param {unknown} value - the value to check
  * @returns {boolean} - true if the value is an instance of Ok
  */
-const isOk = /*#__PURE__*/ isInstanceOf(Ok)
+const isOk = isInstanceOf(Ok)
 
-export { Ok, ok, isOk }
+/**
+ * Check if the Ok value has been consumed
+ * 
+ * @since 0.10.0
+ * @param {unknown} value - the value to check
+ * @returns {boolean} - true if the Ok value has been consumed
+ */
+const isGone = (value: unknown): boolean =>
+	isOk(value) && value.gone
+
+export { Ok, ok, isOk, isGone }

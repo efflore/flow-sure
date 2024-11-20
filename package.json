@@ -1,10 +1,11 @@
 {
   "name": "@efflore/flow-sure",
-  "version": "0.9.8",
-  "description": "FlowSure - a Result monad in TypeScript. Data types Ok, Nil, Err with Maybe.of(), Result.from(), Result.fromAsync() and Result.flow() functions.",
+  "version": "0.10.0",
+  "description": "FlowSure - a Result monad in TypeScript. Data types Ok, Nil, Err with maybe(), result(), asyncResult() and flow() functions.",
   "main": "index.js",
   "types": "index.d.ts",
   "scripts": {
+	"build:dev": "bun build index.ts --outdir ./ && bunx tsc",
     "build": "bun build index.ts --outdir ./ --minify && bunx tsc",
     "test": "bun test"
   },

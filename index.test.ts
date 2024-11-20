@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { type MaybeResult, ok, isOk, nil, isNil, err, isErr, maybe, result, asyncResult, flow } from "./index";
+import { type MaybeResult, ok, isOk, isGone, nil, isNil, err, isErr, maybe, result, task, flow, log } from "./index";
 
 /* === Types === */
 
@@ -24,6 +24,7 @@ const recoverWithErr = () => err("Recovery failed");
 const handleOk = (value: number) => ok(value + 1);
 const handleNil = () => ok("Recovered from Nil");
 const handleErr = (error: Error) => ok(`Recovered from error: ${error.message}`);
+const handleGone = () => ok("Recovered from Gone");
 const successfulTask = () => Promise.resolve(10);
 const nullTask = () => Promise.resolve(null);
 const failingTask = () => Promise.reject(new Error("Task failed"));
@@ -53,17 +54,50 @@ describe("Ok Use Case", () => {
         expect(result.get()).toBe(10);
         result.match({
             Ok: value => expect(typeof value).toBe('number'),
-            // @ts-expect-error
-            Nil: value => expect(typeof value).toBe('undefined'),
+            Nil: () => expect().toBe(undefined),
             Err: error => expect(error instanceof Error).toBe(true)
         });
     });
+
+	test("Ok clones mutable objects successfully", () => {
+		const obj = { a: 1 };
+		const instance = ok(obj);
+		obj.a = 2; // Modify original object
+		expect(instance.get()).toEqual({ a: 1 }); // Clone remains unchanged
+	});
+
+	test("Ok falls back for non-cloneable types", async () => {
+		const promise = new Promise(resolve => setTimeout(() => resolve(10), 1));
+		const instance = ok(promise);
+		const res = instance.get();
+		expect(res).toBe(promise);
+		expect(await res).toBe(await promise);
+		expect(() => instance.get()).toThrow("Mutable reference has already been consumed");
+	});
+
+	test("Ok treats unsupported types as immutable", () => {
+		expect(() => ok(Symbol("test"))).not.toThrow();
+		expect(() => ok(() => {})).not.toThrow();
+		expect(() => ok(BigInt(42))).not.toThrow();
+	});
+
+	test("Ok clones objects with circular references correctly", () => {
+		const circular: any = {};
+		circular.self = circular;
+	
+		const instance = ok(circular);
+		const cloned = instance.get();
+	
+		// Verify that the circular reference is preserved
+		expect(cloned.self).toBe(cloned);
+		expect(cloned).not.toBe(circular); // The clone should not be the same reference as the original
+	});
 });
 
-describe("Result.fromAsync Use Case", () => {
+describe("Task Use Case", () => {
 
 	// Mock fetch function to simulate network request with 200ms delay and 30% failure rate
-	const mockFetch = (url: string): Promise<Response> => new Promise((resolve, reject) => {
+	const mockFetch = (_: string): Promise<Response> => new Promise((resolve, reject) => {
 		const response: Response = result(() => Response.json({
 			value: [
 				{ id: 0, parentId: null, name: "Root" },
@@ -130,7 +164,7 @@ describe("Result.fromAsync Use Case", () => {
 			fn: () => Promise<MaybeResult<T>>,
 			retries: number,
 			delay: number
-		) => asyncResult(fn)
+		) => task(fn)
 				.catch((error: Error) => {
 					if (retries <= 0) return err(error)
 					return new Promise(resolve => setTimeout(resolve, delay))
@@ -188,6 +222,37 @@ describe("Monad Laws for Ok", () => {
         const res2 = ok(x).chain(x => f(x).chain(g));
         expect(res1.get()).toBe(res2.get());
     });
+});
+
+describe("Async Monad Laws for Ok", () => {
+	test("Left Identity: ok(x).await(f) === f(x)", async () => {
+		const x = 5;
+		const f = async (y: number) => ok(y + 1);
+		const res1 = await ok(x).await(f);
+		const res2 = await f(x);
+		expect(res1.get()).toBe(res2.get());
+	});
+
+	test("Right Identity: ok(x).await(async y => ok(y)) === ok(x)", async () => {
+		const x = 5;
+		const res1 = await ok(x).await(async y => ok(y));
+		const res2 = ok(x);
+		expect(res1.get()).toBe(res2.get());
+	});
+
+	test("Associativity: await ok(x).await(f).then(res => res.await(g)) === await ok(x).await(async y => f(y).then(z => z.await(g))", async () => {
+		const x = 5;
+		const f = async (y: number) => ok(y + 1); // Async function
+		const g = async (y: number) => ok(y * 2); // Async function
+	
+		// Sequential application of f and then g
+		const res1 = await ok(x).await(f).then(res => res.await(g));
+	
+		// Composition of f and g into a single operation
+		const res2 = await ok(x).await(async y => f(y).then(z => z.await(g)));
+	
+		expect(res1.get()).toBe(res2.get());
+	});
 });
 
 // Test Monad Laws for Err
@@ -462,6 +527,24 @@ describe("Match Trait for Ok", () => {
         expect(isOk(res)).toBe(true); // Ok remains unchanged
         expect(res.get()).toBe(5);
     });
+
+	test("Match with Gone handler", () => {
+        const res = ok({ name: "John" });
+        expect(res.get().name).toBe("John");
+		expect(isGone(res)).toBe(true); // Gone is true, indicating the value has been consumed already
+		const recovered = res.match({ Gone: handleGone });
+        expect(isOk(recovered)).toBe(true); // Gone handler should be applied
+		expect(recovered.get()).toBe("Recovered from Gone");
+    });
+
+	test("Match without Gone handler, returns Err<ReferenceError>", () => {
+		const res = ok({ name: "John" });
+        expect(res.get().name).toBe("John");
+		expect(isGone(res)).toBe(true); // Gone is true, indicating the value has been consumed already
+        const error = res.match({});
+        expect(isErr(error)).toBe(true); // Refeerence Error is returned, as the value has been consumed already
+        expect(() => error.get()).toThrow("Mutable reference has already been consumed");
+    });
 });
 
 // Nil Monad
@@ -501,6 +584,12 @@ describe("Get Trait for Ok", () => {
     test("Ok.get() returns the contained value", () => {
         const res = ok(5);
         expect(res.get()).toBe(5); // Ok(5) should return 5
+    });
+
+	test("Ok.get() returns the contained structured value only once", () => {
+        const res = ok({ name: "John" });
+        expect(res.get().name).toBe("John"); // Ok({ name: "John" }) should return { name: "John" }
+		expect(() => res.get()).toThrow("Mutable reference has already been consumed");
     });
 });
 
@@ -563,22 +652,22 @@ describe("Result Function", () => {
     });
 });
 
-// Tests for asyncResult()
+// Tests for task()
 
-describe("AsyncResult Function", () => {
-    test("asyncResult() with a successful Promise resolves to Ok", async () => {
-        const res = await asyncResult(successfulTask);
+describe("Task Function", () => {
+    test("task() with a successful Promise resolves to Ok", async () => {
+        const res = await task(successfulTask);
         expect(isOk(res)).toBe(true); // Task resolves to Ok
         expect(res.get()).toBe(10);
     });
 
-    test("asyncResult() with a Promise resolving to null resolves to Nil", async () => {
-        const res = await asyncResult(nullTask);
+    test("task() with a Promise resolving to null resolves to Nil", async () => {
+        const res = await task(nullTask);
         expect(isNil(res)).toBe(true); // Task resolves to Nil
     });
 
-    test("asyncResult() with a failing Promise rejects with Err", async () => {
-        const res = await asyncResult(failingTask);
+    test("task() with a failing Promise rejects with Err", async () => {
+        const res = await task(failingTask);
         expect(isErr(res)).toBe(true); // Task rejects with Err
         expect(() => res.get()).toThrow("Task failed"); // Ensure the error is properly thrown
     });

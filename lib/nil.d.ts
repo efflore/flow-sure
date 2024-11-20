@@ -1,31 +1,46 @@
 import { type Cases } from "./util";
-import { Ok } from "./ok";
-interface Nil {
-    map: (_: any) => Nil;
-    chain: (_: any) => Nil;
-    filter: (_: any) => Nil;
-    guard: (_: any) => Nil;
-    or: <T>(fn: () => T) => Ok<T> | Nil;
-    catch: (_: any) => Nil;
-    match: (cases: Cases<undefined, Error>) => any;
-}
+import { type Maybe } from "./maybe";
 /**
- * "Nil" singleton, representing a lack of a value
+ * "Nil" result, representing a lack of a value
  *
  * @since 0.9.0
  * @class Nil
- * @static of(): Nil
- * @method get(): undefined
+ * @method get(): void - does nothing and returns `void`
  */
 declare class Nil {
     static instance: Nil;
     /**
+     * No-op methods for Nil
+     */
+    map(_: any): Nil;
+    chain(_: any): Nil;
+    await(_: any): Promise<Nil>;
+    filter(_: any): Nil;
+    guard(_: any): Nil;
+    catch(_: any): Nil;
+    /**
+     * Provide an alternative value
+     *
+     * @since 0.9.0
+     * @param {() => T} fn - a function that returns an alternative value
+     * @returns {Maybe<T>} - a new "Ok" containing the alternative value or "Nil"
+     */
+    or: <T>(fn: () => T) => Maybe<T>;
+    /**
+     * Match Nil with a set of cases
+     *
+     * @since 0.9.0
+     * @param {Cases<undefined, Error>} cases - a set of cases to match against
+     * @returns {any} - the result of matching the cases or the passed through "Nil"
+     */
+    match(cases: Cases<undefined, Error>): any;
+    /**
      * Unwrap the "Nil" value
      *
      * @since 0.9.0
-     * @returns {undefined}
+     * @returns {void}
      */
-    get: () => undefined;
+    get: () => void;
 }
 /**
  * Get the singleton "Nil" instance

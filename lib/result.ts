@@ -1,12 +1,13 @@
-import { isError, isFunction } from "./util"
-import { type Ok, ok, isOk } from "./ok"
+import { isAsyncFunction, isError, isFunction } from "./util"
+import { type Ok, isOk } from "./ok"
 import { type Nil, nil, isNil } from "./nil"
 import { type Err, err, isErr } from "./err"
+import { maybe } from "./maybe"
 
 /* === Types === */
 
 type Result<T> = Ok<T> | Nil | Err<Error>
-type MaybeResult<T> = T | Error | Result<T> | undefined
+type MaybeResult<T> = Result<T> | T | Error | null | undefined
 
 /* === Namespace Result === */
 
@@ -22,7 +23,7 @@ const result = /*#__PURE__*/ <T>(
 	...args: any[]
 ): Result<T> => {
 	try {
-		return toResult(fn(...args))
+		return wrap(fn(...args))
 	} catch (error) {
 		return err(error)
 	}
@@ -35,12 +36,12 @@ const result = /*#__PURE__*/ <T>(
  * @param {() => Promise<MaybeResult<T>>} fn - async function to try and maybe retry
  * @returns {Promise<Result<T>>} - promise that resolves to the result of the function or fails with the last error encountered
  */
-const asyncResult = /*#__PURE__*/ async <T>(
+const task = /*#__PURE__*/ async <T>(
 	fn: (...args: any[]) => Promise<MaybeResult<T>>,
 	...args: any[]
 ): Promise<Result<T>> => {
 	try {
-		return toResult(await fn(...args))
+		return wrap(await fn(...args))
 	} catch (error) {
 		return err(error)
 	}
@@ -51,21 +52,21 @@ const asyncResult = /*#__PURE__*/ async <T>(
  * 
  * @since 0.9.0
  * @param {[T | (() => AsyncResult<T>), ...((input: T) => AsyncResult<T>)[]]} fns - array of functions to execute in sequence
- * @returns {Promise<Result<any, any>>} - promise that resolves to the result of the last function or fails with the first error encountered
+ * @returns {Promise<Result<R>>} - promise that resolves to the result of the last function or fails with the first error encountered
  */
-const flow = /*#__PURE__*/ async <T>(
+const flow = /*#__PURE__*/ async <T, R>(
 	...fns: [
 		T | (() => MaybeResult<T> | Promise<MaybeResult<T>>),
 		...((input: T) => MaybeResult<T> | Promise<MaybeResult<T>>)[]
 	]
-): Promise<Result<any>> => {
-    let res: any = isFunction(fns[0]) ? nil() : toResult(fns.shift())
+): Promise<Result<R>> => {
+    let res: any = isFunction(fns[0]) ? nil() : wrap(fns.shift())
     for (const fn of fns) {
 		if (isErr(res)) break
 		if (!isFunction(fn))
 			return err(new TypeError('Expected a function in flow'))
-		res = /^async\s+/.test(fn.toString())
-			? await asyncResult(async () => fn(res.get()))
+		res = isAsyncFunction(fn)
+			? await task(async () => fn(res.get()))
 			: result(fn, res.get())
     }
     return res
@@ -88,27 +89,26 @@ const isResult = /*#__PURE__*/ (value: any): value is Result<any> =>
  * @param {MaybeResult<T>} value - a Result or value
  * @returns {Result<T>} - an Ok<T>, Nil or Err<Error> containing the value
  */
-const toResult = /*#__PURE__*/ <T>(value: MaybeResult<T>): Result<T> =>
-	value == null ? nil()
-		: isResult(value) ? value
+const wrap = /*#__PURE__*/ <T>(value: MaybeResult<T>): Result<T> =>
+	isErr(value) ? value
 		: isError(value) ? err(value)
-		: ok(value)
+		: maybe(value)
 
 /**
  * Unwrap a Result container, returning the value if it is Ok, or the error if it is Err
  * 
  * @since 0.9.6
  * @param {MaybeResult<T>} value - a value or Result
- * @returns {T | Error | undefined} - the value or error from the Result
+ * @returns {T | Error | void} - the value or error from the Result
  */
-const fromResult = /*#__PURE__*/ <T>(
-	value: Result<T> | T | undefined
-): T | Error | undefined =>
+const unwrap = /*#__PURE__*/ <T>(
+	value: Result<T> | T | void
+): T | Error | void =>
 	isErr(value) ? value.error
 		: isOk(value) || isNil(value) ? value.get()
 		: value
 
 export {
 	type Result, type MaybeResult,
-	result, asyncResult, flow, isResult, toResult, fromResult,
+	result, task, flow, isResult, wrap, unwrap,
 }
