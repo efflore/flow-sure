@@ -12,4 +12,4 @@ declare const isInstanceOf: <T>(type: new (...args: any[]) => T) => (value: unkn
 declare const isError: (value: unknown) => value is Error;
 declare const log: (msg: string, logger?: (...args: any[]) => void) => (...args: any[]) => any;
 declare const tryClone: <T>(value: T, warn?: boolean) => T;
-export { type Cases, isFunction, isAsyncFunction, isDefined, isMutable, isInstanceOf, isError, tryClone, log, };
+export { type Cases, isFunction, isAsyncFunction, isDefined, isMutable, isInstanceOf, isError, log, tryClone };

@@ -1,7 +1,19 @@
 import { describe, test, expect } from "bun:test";
-import { type MaybeResult, ok, isOk, isGone, nil, isNil, err, isErr, maybe, result, task, flow, log } from "./index";
+import {
+	type Result, type MaybeResult,
+	ok, isOk, isGone, nil, isNil, err, isErr, maybe, result, task, flow
+} from "./index";
 
 /* === Types === */
+
+type Rule = [number, string]
+type Validation = {
+  isValidNumber: (num: number) => boolean
+  isValidRule: (rule: Rule) => boolean
+  invalidNumberError: string
+  invalidRulesError: string
+}
+type Strategy = (rules: Rule[], num: number) => string
 
 type TreeNode = { id: number; parentId: number; name: string, children?: Set<TreeNode> }
 type TreeStructure = { roots: Set<TreeNode>, orphans: Set<TreeNode>}
@@ -92,6 +104,152 @@ describe("Ok Use Case", () => {
 		expect(cloned.self).toBe(cloned);
 		expect(cloned).not.toBe(circular); // The clone should not be the same reference as the original
 	});
+});
+
+describe("Maybe Use Case", () => {
+	const isIntegerInRange = (min: number, max?: number) => (n: number) =>
+		Number.isInteger(n) && n >= min && max ? n <= max : true
+	const isNonEmptyString = (s: string) =>
+		typeof s === "string" && s.length > 0
+
+	// Generalized Numeral Converter
+	const numeral = (
+		strategy: Strategy,
+		rules: Rule[],
+		validation: Validation
+	) => {
+		const {
+			isValidNumber,
+			isValidRule,
+			invalidNumberError,
+			invalidRulesError
+		} = validation
+	  
+		const transform = (n: number): Result<string> =>
+			maybe(rules)
+				.filter(Array.isArray)
+				.filter(() => rules.every(isValidRule))
+				.map((validRules: Rule[]) => strategy(validRules, n))
+				.match({
+					Nil: () => err(invalidRulesError),
+				})
+	  
+		return (n: number): string =>
+			maybe(n)
+				.filter(isValidNumber)
+				.chain((num: number) => transform(num))
+				.match({
+					Nil: () => err(invalidNumberError),
+				})
+				.get()
+	}		
+
+	test("FizzBuzz should handle numbers correctly", () => {
+		const fizzBuzzStrategy: Strategy = (rules, num) =>
+			rules.reduce(
+				(acc, [divisor, word]) => (num % divisor === 0 ? acc + word : acc),
+				""
+			) || String(num)
+		const fizzBuzzRules: Rule[] = [
+			[3, "Fizz"],
+			[5, "Buzz"],
+		]
+		const fizzBuzzValidation: Validation = {
+			isValidNumber: isIntegerInRange(1, 99),
+			isValidRule: ([divisor, word]) =>
+				isIntegerInRange(1, 9)(divisor) && isNonEmptyString(word),
+			invalidNumberError: "Number must be an integer between 1 and 99.",
+			invalidRulesError: "Rules must be an array of [integer (1–9), non-empty string] pairs.",
+		}
+		const fizzBuzz = numeral(fizzBuzzStrategy, fizzBuzzRules, fizzBuzzValidation)
+
+        expect(fizzBuzz(1)).toBe("1");
+        expect(fizzBuzz(2)).toBe("2");
+        expect(fizzBuzz(3)).toBe("Fizz");
+        expect(fizzBuzz(5)).toBe("Buzz");
+        expect(fizzBuzz(15)).toBe("FizzBuzz");
+
+		const fizzBuzzRange = (rules: Array<[number, string]>, limit: number) =>
+			Array.from({ length: limit }, (_, i) => i + 1)
+				.map(numeral(fizzBuzzStrategy, rules, fizzBuzzValidation))
+				.join(" ")
+		
+        expect(fizzBuzzRange([[3, "Fizz"], [5, "Buzz"], [7, "Pop"]], 35))
+			.toBe("1 2 Fizz 4 Buzz Fizz Pop 8 Fizz Buzz 11 Fizz 13 Pop FizzBuzz 16 17 Fizz 19 Buzz FizzPop 22 23 Fizz Buzz 26 Fizz Pop 29 FizzBuzz 31 32 Fizz 34 BuzzPop");
+    });
+
+	test("Roman Numeral Converter should handle numbers correctly", () => {
+		const toRoman = numeral(
+			(rules, num) => { // Strategy for Roman Numeral Conversion
+				let result = ""
+				let remaining = num
+				for (const [value, symbol] of rules) {
+					while (remaining >= value) {
+						result += symbol
+						remaining -= value
+					}
+				}
+				return result
+			},
+			[ // Roman Numeral Rules
+				[1000, "M"],
+				[900, "CM"],
+				[500, "D"],
+				[400, "CD"],
+				[100, "C"],
+				[90, "XC"],
+				[50, "L"],
+				[40, "XL"],
+				[10, "X"],
+				[9, "IX"],
+				[5, "V"],
+				[4, "IV"],
+				[1, "I"],
+			],
+			{ // Validation constraints for Roman Numeral Conversion
+				isValidNumber: isIntegerInRange(1, 3999),
+				isValidRule: ([value, symbol]) =>
+					isIntegerInRange(1, 1000)(value) && isNonEmptyString(symbol),
+				invalidNumberError: "Input must be a positive integer between 1 and 3999.",
+				invalidRulesError: "Rules must be an array of [positive integer, non-empty string] pairs.",
+			}
+		)
+
+		expect(toRoman(1)).toBe("I");
+        expect(toRoman(4)).toBe("IV");
+        expect(toRoman(5)).toBe("V");
+        expect(toRoman(9)).toBe("IX");
+        expect(toRoman(10)).toBe("X");
+        expect(toRoman(40)).toBe("XL");
+        expect(toRoman(50)).toBe("L");
+        expect(toRoman(90)).toBe("XC");
+        expect(toRoman(100)).toBe("C");
+        expect(toRoman(400)).toBe("CD");
+        expect(toRoman(500)).toBe("D");
+        expect(toRoman(900)).toBe("CM");
+        expect(toRoman(1000)).toBe("M");
+		expect(toRoman(1987)).toBe("MCMLXXXVII");
+	});
+
+	test("Hexadecimal Converter should handle numbers correctly", () => {
+		const toHexadecimal = numeral(
+			(_, num) => num.toString(16).toUpperCase(),
+			[],
+			{
+				isValidNumber: isIntegerInRange(0), // No upper limit for hexadecimal
+				isValidRule: () => true, // No rules needed for hexadecimal
+				invalidNumberError: "Number must be a non-negative integer.",
+				invalidRulesError: "",
+			}
+		)
+
+		expect(toHexadecimal(1)).toBe("1");
+        expect(toHexadecimal(15)).toBe("F");
+        expect(toHexadecimal(255)).toBe("FF");
+        expect(toHexadecimal(1000)).toBe("3E8");
+        expect(toHexadecimal(16777215)).toBe("FFFFFF");
+	});
+
 });
 
 describe("Task Use Case", () => {
